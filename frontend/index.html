@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Administrador de Tareas y Listas de Reproducción</title>
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module" src="/src/main.js"></script>
+    <link href="/src/style.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
@@ -507,7 +507,7 @@
                     this.todoError = null;
                     
                     try {
-                        const response = await fetch('/todos');
+                        const response = await fetch('http://localhost:8080/todos');
                         if (!response.ok) {
                             throw new Error(`HTTP error! status: ${response.status}`);
                         }
@@ -527,7 +527,7 @@
                     this.todoError = null;
 
                     try {
-                        const response = await fetch('/todos', {
+                        const response = await fetch('http://localhost:8080/todos', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -567,7 +567,7 @@
                     this.todoError = null;
 
                     try {
-                        const response = await fetch(`/todos/${todo.id}`, {
+                        const response = await fetch(`http://localhost:8080/todos/${todo.id}`, {
                             method: 'PUT',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -607,7 +607,7 @@
                     this.todoError = null;
 
                     try {
-                        const response = await fetch(`/todos/${id}`, {
+                        const response = await fetch(`http://localhost:8080/todos/${id}`, {
                             method: 'DELETE'
                         });
 
@@ -627,7 +627,7 @@
                     this.playlistLoading = true;
                     this.playlistError = null;
                     try {
-                        const response = await fetch('/playlist/');
+                        const response = await fetch('http://localhost:8080/playlist/');
                         if (!response.ok) throw new Error('Error al cargar lista de reproducción');
                         this.playlist = await response.json();
                     } catch (err) {
@@ -641,7 +641,7 @@
                     this.playlistLoading = true;
                     this.playlistError = null;
                     try {
-                        const response = await fetch('/playlist/', {
+                        const response = await fetch('http://localhost:8080/playlist/', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -678,7 +678,7 @@
                     this.playlistLoading = true;
                     this.playlistError = null;
                     try {
-                        const response = await fetch(`/playlist/${song.id}`, {
+                        const response = await fetch(`http://localhost:8080/playlist/${song.id}`, {
                             method: 'PUT',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -711,7 +711,7 @@
                     this.playlistLoading = true;
                     this.playlistError = null;
                     try {
-                        const response = await fetch(`/playlist/${id}`, {
+                        const response = await fetch(`http://localhost:8080/playlist/${id}`, {
                             method: 'DELETE'
                         });
 
