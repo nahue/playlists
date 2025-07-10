@@ -32,6 +32,6 @@ func SetupRoutes(r chi.Router) {
 		})
 	})
 
-	// API routes only - frontend will be served by Nuxt
-	r.Handle("/*", http.FileServer(http.Dir("./frontend")))
+	// Serve built frontend
+	r.Handle("/*", http.FileServer(http.Dir("./frontend/dist")))
 }
