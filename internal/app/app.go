@@ -9,6 +9,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/nahue/playlists/internal/database"
 	"github.com/nahue/playlists/internal/handlers"
+	"github.com/nahue/playlists/migrations"
 )
 
 // Application represents the main application instance
@@ -46,6 +47,11 @@ func NewApplication() *Application {
 	db, err := database.Open(dbConfig)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
+	}
+
+	err = database.MigrateFS(db, migrations.FS, ".")
+	if err != nil {
+		panic(err)
 	}
 
 	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Lshortfile)

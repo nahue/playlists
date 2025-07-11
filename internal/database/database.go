@@ -2,11 +2,13 @@ package database
 
 import (
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	"github.com/pressly/goose/v3"
 )
 
 var DB *sqlx.DB
@@ -75,4 +77,27 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func MigrateFS(db *sqlx.DB, migrationsFS fs.FS, dir string) error {
+	goose.SetBaseFS(migrationsFS)
+	defer func() {
+		goose.SetBaseFS(nil)
+	}()
+
+	return Migrate(db, dir)
+}
+
+func Migrate(db *sqlx.DB, dir string) error {
+	err := goose.SetDialect("postgres")
+	if err != nil {
+		return fmt.Errorf("migrate: %w", err)
+	}
+
+	err = goose.Up(db.DB, dir)
+	if err != nil {
+		return fmt.Errorf("goose up: %w", err)
+	}
+
+	return nil
 }
