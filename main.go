@@ -4,35 +4,38 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/cors"
-	"github.com/nahue/playlists/internal"
+	"github.com/nahue/playlists/internal/app"
+	"github.com/nahue/playlists/internal/routes"
 )
 
 func main() {
-	r := chi.NewRouter()
+	// Create new application instance with router
+	application := app.NewApplication()
 
-	// CORS middleware for Nuxt frontend
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:3001", "http://localhost:5173"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		ExposedHeaders:   []string{"Link"},
-		AllowCredentials: true,
-		MaxAge:           300,
-	}))
+	// Create router and setup middleware
+	r := routes.SetupRoutes(application)
 
-	// Middleware
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-	r.Use(middleware.CleanPath)
-	r.Use(middleware.GetHead)
+	// Ensure graceful shutdown
+	defer func() {
+		if err := application.Shutdown(); err != nil {
+			log.Printf("Error during shutdown: %v", err)
+		}
+	}()
 
-	// Setup routes
-	internal.SetupRoutes(r)
+	server := &http.Server{
+		Addr:         fmt.Sprintf("%s:%s", application.Config.Host, application.Config.Port),
+		Handler:      r,
+		IdleTimeout:  time.Minute,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 30 * time.Second,
+	}
 
-	fmt.Println("Server listening on port 8080")
-	log.Fatal(http.ListenAndServe(":8080", r))
+	application.Logger.Printf("Starting server on port %s", application.Config.Port)
+
+	err := server.ListenAndServe()
+	if err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
 }

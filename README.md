@@ -1,20 +1,28 @@
-# 🎵 Task & Playlist Manager
+# 🎵 Playlist & Band Manager
 
-A modern web application for managing tasks and music playlists, built with Go on the backend and Alpine.js on the frontend.
+A modern web application for managing music playlists and bands, built with Go on the backend and Alpine.js on the frontend.
 
 ## ✨ Features
-
-### 📝 Task Management
-- ✅ Create, edit and delete tasks
-- ✅ Modern and responsive interface
-- ✅ Real-time validation
-- ✅ Deletion confirmations
 
 ### 🎵 Playlist Management
 - ✅ Add songs with artist, title and username
 - ✅ Smart autocomplete for artists and users
 - ✅ Edit and delete songs
 - ✅ Intuitive interface with smooth transitions
+
+### 🎸 Band Management
+- ✅ Create and manage bands
+- ✅ Add and manage band members with roles
+- ✅ Member contact information (email, phone)
+- ✅ Band descriptions and details
+- ✅ User-scoped band ownership
+
+### 🔐 User Authentication
+- ✅ Secure user registration and login
+- ✅ JWT token-based authentication
+- ✅ Password hashing with bcrypt
+- ✅ User profile management
+- ✅ Protected API endpoints
 
 ### 🎨 User Interface
 - ✅ Modern design with Tailwind CSS
@@ -28,6 +36,10 @@ A modern web application for managing tasks and music playlists, built with Go o
 ### Backend
 - **Go 1.24.4** - Programming language
 - **Chi Router** - Lightweight and fast HTTP router
+- **PostgreSQL** - Relational database
+- **SQLx** - Enhanced database operations
+- **JWT** - Authentication tokens
+- **bcrypt** - Password hashing
 - **CORS** - Cross-Origin Resource Sharing support
 
 ### Frontend
@@ -38,6 +50,7 @@ A modern web application for managing tasks and music playlists, built with Go o
 ## 📋 Prerequisites
 
 - Go 1.24.4 or higher
+- PostgreSQL database
 - Modern web browser
 
 ## 🛠️ Installation
@@ -53,61 +66,121 @@ A modern web application for managing tasks and music playlists, built with Go o
    go mod download
    ```
 
-3. **Run the application**
+3. **Configure database**
+   ```bash
+   # Copy and edit the configuration file
+   cp config.env.example config.env
+   # Edit config.env with your database settings
+   ```
+
+4. **Run database migrations**
+   ```bash
+   ./scripts/migrate.sh
+   ```
+
+5. **Run the application**
    ```bash
    go run main.go
    ```
 
-4. **Open in browser**
+6. **Open in browser**
    ```
    http://localhost:8080
    ```
 
+## 🏗️ Architecture
+
+### Application Structure
+The application uses a clean, modular architecture with dependency injection:
+
+- **`main.go`** - Entry point with server configuration
+- **`internal/app/`** - Application struct and lifecycle management
+- **`internal/routes/`** - Route configuration and middleware setup
+- **`internal/handlers/`** - HTTP request handlers with dependency injection
+- **`internal/database/`** - Database repositories and connection management
+- **`migrations/`** - Database schema migrations
+
+### Key Components
+
+#### Application Struct
+```go
+type Application struct {
+    Logger      *log.Logger
+    Config      *Config
+    DB          *sqlx.DB
+    BandHandler *handlers.BandHandler
+    AuthHandler *handlers.AuthHandler
+}
+```
+
+The Application struct encapsulates:
+- Database connection management
+- Repository instances (Band, User)
+- Handler instances with dependency injection
+- Configuration handling
+- Logging setup
+- Application lifecycle
+
+#### Repository Pattern
+The application uses repository pattern for data access:
+- **`BandRepository`** - Manages bands and band members
+- **`UserRepository`** - Manages users and authentication
+
+#### Handler Pattern
+Handlers use dependency injection:
+- **`BandHandler`** - HTTP handlers for band operations
+- **`AuthHandler`** - HTTP handlers for authentication
+
 ## 📚 API Documentation
 
-### Task Endpoints
+### Authentication Endpoints
 
-#### GET /todos
-Get all tasks.
+#### POST /auth/register
+Register a new user account.
 ```bash
-curl http://localhost:8080/todos
-```
-
-#### POST /todos
-Create a new task.
-```bash
-curl -X POST http://localhost:8080/todos \
+curl -X POST http://localhost:8080/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"text": "New task"}'
+  -d '{
+    "first_name": "John",
+    "last_name": "Doe",
+    "email": "john@example.com",
+    "password": "password123"
+  }'
 ```
 
-#### PUT /todos/{id}
-Update an existing task.
+#### POST /auth/login
+Authenticate user and get JWT token.
 ```bash
-curl -X PUT http://localhost:8080/todos/1 \
+curl -X POST http://localhost:8080/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"text": "Updated task"}'
+  -d '{
+    "email": "john@example.com",
+    "password": "password123"
+  }'
 ```
 
-#### DELETE /todos/{id}
-Delete a task.
+#### GET /api/profile
+Get current user's profile.
 ```bash
-curl -X DELETE http://localhost:8080/todos/1
+curl http://localhost:8080/api/profile \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
 ### Playlist Endpoints
 
-#### GET /playlist
+#### GET /api/playlist
 Get all songs in the playlist.
 ```bash
-curl http://localhost:8080/playlist
+curl http://localhost:8080/api/playlist \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
-#### POST /playlist
+#### POST /api/playlist
 Add a new song to the playlist.
 ```bash
-curl -X POST http://localhost:8080/playlist \
+curl -X POST http://localhost:8080/api/playlist \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
     "artist": "Artist",
     "song": "Song",
@@ -115,34 +188,99 @@ curl -X POST http://localhost:8080/playlist \
   }'
 ```
 
-#### PUT /playlist/{id}
-Update an existing song.
+### Band Endpoints
+
+#### GET /api/bands
+Get all bands for authenticated user.
 ```bash
-curl -X PUT http://localhost:8080/playlist/1 \
+curl http://localhost:8080/api/bands \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+#### POST /api/bands
+Create a new band.
+```bash
+curl -X POST http://localhost:8080/api/bands \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
-    "artist": "Updated Artist",
-    "song": "Updated Song",
-    "user_name": "User"
+    "name": "Band Name",
+    "description": "Band description",
+    "members": [
+      {
+        "name": "John Doe",
+        "role": "Guitarist",
+        "email": "john@example.com"
+      }
+    ]
   }'
 ```
 
-#### DELETE /playlist/{id}
-Delete a song from the playlist.
+#### GET /api/bands/{id}
+Get a specific band.
 ```bash
-curl -X DELETE http://localhost:8080/playlist/1
+curl http://localhost:8080/api/bands/1 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
-#### GET /playlist/artists?q={query}
-Get artist suggestions for autocomplete.
+#### PUT /api/bands/{id}
+Update a band.
 ```bash
-curl "http://localhost:8080/playlist/artists?q=artist"
+curl -X PUT http://localhost:8080/api/bands/1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "name": "Updated Band Name",
+    "description": "Updated description"
+  }'
 ```
 
-#### GET /playlist/users?q={query}
-Get username suggestions for autocomplete.
+#### DELETE /api/bands/{id}
+Delete a band.
 ```bash
-curl "http://localhost:8080/playlist/users?q=user"
+curl -X DELETE http://localhost:8080/api/bands/1 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+#### GET /api/bands/{bandId}/members
+Get all members of a band.
+```bash
+curl http://localhost:8080/api/bands/1/members \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+#### POST /api/bands/{bandId}/members
+Add a member to a band.
+```bash
+curl -X POST http://localhost:8080/api/bands/1/members \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "name": "Member Name",
+    "role": "Guitar",
+    "email": "member@example.com",
+    "phone": "123-456-7890"
+  }'
+```
+
+#### PUT /api/bands/{bandId}/members/{memberId}
+Update a band member.
+```bash
+curl -X PUT http://localhost:8080/api/bands/1/members/1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "name": "Updated Name",
+    "role": "Updated Role",
+    "email": "updated@example.com"
+  }'
+```
+
+#### DELETE /api/bands/{bandId}/members/{memberId}
+Remove a member from a band.
+```bash
+curl -X DELETE http://localhost:8080/api/bands/1/members/1 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
 ## 🏗️ Project Structure
@@ -152,92 +290,104 @@ playlists/
 ├── main.go                 # Application entry point
 ├── go.mod                  # Go dependencies
 ├── go.sum                  # Dependency checksums
+├── config.env              # Environment configuration
 ├── README.md              # This file
+├── DATABASE.md            # Database setup guide
+├── migrations/            # Database migrations
+├── scripts/               # Utility scripts
 ├── frontend/              # Frontend files
-│   └── index.html         # Main interface
+│   └── src/               # Source files
 └── internal/              # Internal application code
-    ├── routes.go          # Route configuration
-    └── handlers/          # Endpoint handlers
-        ├── todo_handlers.go      # Task logic
-        └── playlist_handlers.go  # Playlist logic
+    ├── app/               # Application struct and lifecycle
+    ├── routes/            # Route configuration
+    ├── handlers/          # HTTP handlers with DI
+    └── database/          # Database repositories
 ```
 
 ## 🎯 Usage
 
-### Task Management
-1. Navigate to the "Task App" tab
-2. Type a new task in the text field
-3. Click "Add Task" or press Enter
-4. To edit, click the edit icon
-5. To delete, click the delete icon
+### User Authentication
+1. Register a new account or login with existing credentials
+2. Use the JWT token for authenticated API requests
+3. Access your profile information
 
 ### Playlist Management
 1. Navigate to the "Playlist Manager" tab
-2. Fill out the form with:
-   - **Artist**: Artist name (with autocomplete)
-   - **Song**: Song title
-   - **Your Name**: Your username (with autocomplete)
-3. Click "Add Song"
-4. To edit, click the edit icon in the corresponding row
-5. To delete, click the delete icon
+2. Fill in artist, song, and username fields
+3. Click "Add to Playlist"
+4. Use autocomplete for existing artists and users
+5. Edit or delete entries as needed
 
-## 🔧 Configuration
+### Band Management
+1. Navigate to the "Bands" section
+2. Create a new band with name and description
+3. Add members with roles and contact information
+4. Edit band details and member information
+5. Manage band membership
+
+## 🔧 Development
+
+### Running in Development Mode
+```bash
+# Install Air for hot reloading
+go install github.com/cosmtrek/air@latest
+
+# Run with hot reload
+air
+```
+
+### Database Management
+```bash
+# Run migrations
+./scripts/migrate.sh
+
+# Test database connection
+./scripts/test-db.sh
+```
+
+### Testing
+```bash
+# Run all tests
+go test ./...
+
+# Run specific package tests
+go test ./internal/database/...
+go test ./internal/app/...
+```
+
+## 🚀 Deployment
 
 ### Environment Variables
-The application runs on port 8080 by default. To change the port, modify the line in `main.go`:
+Set the following environment variables for production:
 
-```go
-log.Fatal(http.ListenAndServe(":8080", r))
+```env
+DB_HOST=your-db-host
+DB_PORT=5432
+DB_USER=your-db-user
+DB_PASSWORD=your-db-password
+DB_NAME=your-db-name
+DB_SSLMODE=require
+JWT_SECRET=your-secure-jwt-secret
+SERVER_PORT=8080
 ```
 
-### CORS
-The application is configured to allow requests from:
-- `http://localhost:3000`
-- `http://localhost:3001`
-
-To modify the allowed origins, edit the CORS configuration in `main.go`.
-
-## 🧪 Development
-
-### Run in development mode
+### Docker Deployment
 ```bash
-go run main.go
+# Build the application
+docker build -t playlists .
+
+# Run with environment variables
+docker run -p 8080:8080 --env-file config.env playlists
 ```
-
-### Build for production
-```bash
-go build -o playlists main.go
-./playlists
-```
-
-### Run tests (when added)
-```bash
-go test ./...
-```
-
-## 📝 Technical Notes
-
-- **Storage**: Data is stored in memory (lost when server restarts)
-- **Validation**: Required fields are validated to not be empty
-- **Autocomplete**: Suggestions are based on existing data in the list
-- **Responsive**: Interface adapts to different screen sizes
 
 ## 🤝 Contributing
 
-1. Fork the project
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Submit a pull request
 
 ## 📄 License
 
-This project is under the MIT License. See the `LICENSE` file for more details.
-
-## 👨‍💻 Author
-
-**Nahuel** - [GitHub](https://github.com/nahue)
-
----
-
-⭐ If you like this project, give it a star on GitHub! 
+This project is licensed under the MIT License - see the LICENSE file for details.

@@ -1,0 +1,569 @@
+---
+import Layout from '../../layouts/Layout.astro';
+---
+
+<script>
+  import { requireAuth } from '../../utils/auth.js';
+  
+  // Require authentication - only run on client side to avoid SSR issues
+  if (typeof window !== 'undefined') {
+    requireAuth();
+  }
+</script>
+
+<Layout>
+  <div class="min-h-screen bg-gray-50 py-8">
+    <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+      <!-- Alpine.js data object containing form state and methods -->
+      <div x-data="{
+        // Form data object to store band information
+        form: {
+          name: '',
+          description: ''
+        },
+        // Members management
+        members: [],
+        newMember: {
+          name: '',
+          role: '',
+          email: '',
+          phone: ''
+        },
+        editingMember: null,
+        showMemberModal: false,
+        tempMemberId: 1, // For temporary member IDs during creation
+        loading: false,  // Loading state for form submission
+        error: '',       // Error message display
+        success: '',     // Success message display
+        isEditing: false, // Whether we're editing an existing band
+        bandId: null,    // ID of the band being edited
+        
+        // Initialize the component
+        init() {
+          // Check if we're editing by looking for band ID in URL
+          const urlParams = new URLSearchParams(window.location.search);
+          const bandId = urlParams.get('id');
+          
+          if (bandId) {
+            this.isEditing = true;
+            this.bandId = bandId;
+            this.loadBandData(bandId);
+          }
+        },
+        
+        // Load existing band data for editing
+        async loadBandData(bandId) {
+          this.loading = true;
+          this.error = '';
+          
+          try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`http://localhost:8080/api/bands/${bandId}`, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            
+            if (response.ok) {
+              const band = await response.json();
+              this.form.name = band.name;
+              this.form.description = band.description || '';
+              this.members = band.members || [];
+            } else {
+              this.error = 'Error al cargar los datos de la banda';
+            }
+          } catch (error) {
+            this.error = 'Error de conexión con el servidor';
+          } finally {
+            this.loading = false;
+          }
+        },
+        
+        // Main function to create or update a band
+        async createBand() {
+          // Validate required fields
+          if (!this.form.name.trim()) {
+            this.error = 'El nombre de la banda es requerido';
+            return;
+          }
+          
+          // Set loading state and clear previous errors
+          this.loading = true;
+          this.error = '';
+          
+          try {
+            // Get authentication token from localStorage
+            const token = localStorage.getItem('token');
+            
+            // Determine the API endpoint and method based on whether we're editing
+            const url = this.isEditing 
+              ? `http://localhost:8080/api/bands/${this.bandId}`
+              : 'http://localhost:8080/api/bands';
+            const method = this.isEditing ? 'PUT' : 'POST';
+            
+            // Prepare request body
+            const requestBody = {
+              name: this.form.name.trim(),
+              description: this.form.description.trim()
+            };
+            
+            // If creating a new band and we have members, include them
+            if (!this.isEditing && this.members.length > 0) {
+              requestBody.members = this.members.map(member => ({
+                name: member.name,
+                role: member.role,
+                email: member.email,
+                phone: member.phone
+              }));
+            }
+            
+            // Make API call to create or update band
+            const response = await fetch(url, {
+              method: method,
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`  // Include auth token
+              },
+              body: JSON.stringify(requestBody)
+            });
+            
+            // Handle successful response
+            if (response.ok) {
+              this.success = this.isEditing 
+                ? '¡Banda actualizada exitosamente!' 
+                : '¡Banda creada exitosamente!';
+              // Redirect to bands list after 1.5 seconds
+              setTimeout(() => {
+                window.location.href = '/bands';
+              }, 1500);
+            } else {
+              // Handle API errors
+              const errorData = await response.text();
+              this.error = 'Error: ' + errorData;
+            }
+          } catch (error) {
+            // Handle network/connection errors
+            this.error = 'Error de conexión con el servidor';
+          } finally {
+            // Always reset loading state
+            this.loading = false;
+          }
+        },
+        
+        // Member management functions
+        openMemberModal(member = null) {
+          this.editingMember = member;
+          if (member) {
+            this.newMember = { ...member };
+          } else {
+            this.newMember = { name: '', role: '', email: '', phone: '' };
+          }
+          this.showMemberModal = true;
+        },
+        
+        closeMemberModal() {
+          this.showMemberModal = false;
+          this.editingMember = null;
+          this.newMember = { name: '', role: '', email: '', phone: '' };
+        },
+        
+        async saveMember() {
+          if (!this.newMember.name.trim() || !this.newMember.role.trim()) {
+            this.error = 'El nombre y rol son requeridos';
+            return;
+          }
+          
+          // If we're creating a new band (no bandId yet), handle locally
+          if (!this.bandId) {
+            if (this.editingMember) {
+              // Update existing temporary member
+              const index = this.members.findIndex(m => m.id === this.editingMember.id);
+              if (index !== -1) {
+                this.members[index] = { ...this.newMember, id: this.editingMember.id };
+              }
+            } else {
+              // Add new temporary member
+              this.members.push({ 
+                ...this.newMember, 
+                id: this.tempMemberId++,
+                band_id: null // Will be set when band is created
+              });
+            }
+            this.closeMemberModal();
+            return;
+          }
+          
+          // If we're editing an existing band, use the API
+          try {
+            const token = localStorage.getItem('token');
+            const url = this.editingMember 
+              ? `http://localhost:8080/api/bands/${this.bandId}/members/${this.editingMember.id}`
+              : `http://localhost:8080/api/bands/${this.bandId}/members`;
+            const method = this.editingMember ? 'PUT' : 'POST';
+            
+            const response = await fetch(url, {
+              method: method,
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                name: this.newMember.name.trim(),
+                role: this.newMember.role.trim(),
+                email: this.newMember.email.trim(),
+                phone: this.newMember.phone.trim()
+              })
+            });
+            
+            if (response.ok) {
+              const savedMember = await response.json();
+              if (this.editingMember) {
+                // Update existing member
+                const index = this.members.findIndex(m => m.id === this.editingMember.id);
+                if (index !== -1) {
+                  this.members[index] = savedMember;
+                }
+              } else {
+                // Add new member
+                this.members.push(savedMember);
+              }
+              this.closeMemberModal();
+            } else {
+              const errorData = await response.text();
+              this.error = 'Error: ' + errorData;
+            }
+          } catch (error) {
+            this.error = 'Error de conexión con el servidor';
+          }
+        },
+        
+        async deleteMember(memberId) {
+          if (!confirm('¿Estás seguro de que quieres eliminar este miembro?')) {
+            return;
+          }
+          
+          // If we're creating a new band (no bandId yet), handle locally
+          if (!this.bandId) {
+            this.members = this.members.filter(m => m.id !== memberId);
+            return;
+          }
+          
+          // If we're editing an existing band, use the API
+          try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`http://localhost:8080/api/bands/${this.bandId}/members/${memberId}`, {
+              method: 'DELETE',
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            
+            if (response.ok) {
+              this.members = this.members.filter(m => m.id !== memberId);
+            } else {
+              const errorData = await response.text();
+              this.error = 'Error: ' + errorData;
+            }
+          } catch (error) {
+            this.error = 'Error de conexión con el servidor';
+          }
+        }
+      }">
+        
+        <!-- Page Header Section -->
+        <div class="mb-8">
+          <div class="flex items-center justify-between">
+            <div>
+              <h1 class="text-3xl font-bold text-gray-900" x-text="isEditing ? 'Editar Banda' : 'Crear Nueva Banda'"></h1>
+              <p class="mt-2 text-sm text-gray-600" x-text="isEditing ? 'Modifica la información de tu banda' : 'Completa la información para crear tu nueva banda'">
+              </p>
+            </div>
+            <!-- Back button to return to bands list -->
+            <a
+              href="/bands"
+              class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              <svg class="-ml-1 mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Volver
+            </a>
+          </div>
+        </div>
+        
+        <!-- Error Message Display -->
+        <div x-show="error" x-transition class="mb-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          <span x-text="error"></span>
+        </div>
+        
+        <!-- Success Message Display -->
+        <div x-show="success" x-transition class="mb-6 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+          <span x-text="success"></span>
+        </div>
+        
+        <!-- Main Form Section -->
+        <div class="bg-white shadow rounded-lg">
+          <div class="px-4 py-5 sm:p-6">
+            <!-- Band creation/editing form with Alpine.js event handling -->
+            <form @submit.prevent="createBand()" class="space-y-6">
+              <!-- Band Name Input Field -->
+              <div>
+                <label for="band-name" class="block text-sm font-medium text-gray-700">
+                  Nombre de la Banda *
+                </label>
+                <!-- Two-way data binding with Alpine.js -->
+                <input
+                  id="band-name"
+                  x-model="form.name"
+                  type="text"
+                  required
+                  class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  placeholder="Ingresa el nombre de tu banda"
+                />
+                <p class="mt-2 text-sm text-gray-500">
+                  El nombre debe ser único y representativo de tu banda
+                </p>
+              </div>
+              
+              <!-- Band Description Textarea -->
+              <div>
+                <label for="band-description" class="block text-sm font-medium text-gray-700">
+                  Descripción
+                </label>
+                <!-- Two-way data binding with Alpine.js -->
+                <textarea
+                  id="band-description"
+                  x-model="form.description"
+                  rows="4"
+                  class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  placeholder="Describe tu banda, su estilo musical, integrantes, etc. (opcional)"
+                ></textarea>
+                <p class="mt-2 text-sm text-gray-500">
+                  Proporciona información adicional sobre tu banda
+                </p>
+              </div>
+              
+              <!-- Members Management Section -->
+              <div>
+                <div class="border-t border-gray-200 pt-6">
+                  <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-medium text-gray-900" x-text="isEditing ? 'Miembros de la Banda' : 'Agregar Miembros (Opcional)'"></h3>
+                    <button
+                      type="button"
+                      @click="openMemberModal()"
+                      class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                      <svg class="-ml-0.5 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      Agregar Miembro
+                    </button>
+                  </div>
+                  
+                  <!-- Members List -->
+                  <div class="space-y-3">
+                    <template x-for="member in members" :key="member.id">
+                      <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div class="flex-1">
+                          <div class="flex items-center space-x-3">
+                            <div class="flex-shrink-0">
+                              <div class="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
+                                <span class="text-sm font-medium text-indigo-600" x-text="member.name.charAt(0).toUpperCase()"></span>
+                              </div>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                              <p class="text-sm font-medium text-gray-900" x-text="member.name"></p>
+                              <p class="text-sm text-gray-500" x-text="member.role"></p>
+                              <div class="flex space-x-4 mt-1">
+                                <span x-show="member.email" class="text-xs text-gray-400" x-text="member.email"></span>
+                                <span x-show="member.phone" class="text-xs text-gray-400" x-text="member.phone"></span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="flex space-x-2">
+                          <button
+                            type="button"
+                            @click="openMemberModal(member)"
+                            class="text-indigo-600 hover:text-indigo-900"
+                            title="Editar miembro"
+                          >
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            @click="deleteMember(member.id)"
+                            class="text-red-600 hover:text-red-900"
+                            title="Eliminar miembro"
+                          >
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    </template>
+                    
+                    <div x-show="members.length === 0" class="text-center py-8 text-gray-500">
+                      <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                      <h3 class="mt-2 text-sm font-medium text-gray-900" x-text="isEditing ? 'No hay miembros' : 'Sin miembros por ahora'"></h3>
+                      <p class="mt-1 text-sm text-gray-500" x-text="isEditing ? 'Comienza agregando el primer miembro de tu banda.' : 'Puedes agregar miembros ahora o más tarde desde la edición de la banda.'"></p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Form Action Buttons -->
+              <div class="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+                <!-- Cancel button - returns to bands list -->
+                <a
+                  href="/bands"
+                  class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  Cancelar
+                </a>
+                <!-- Submit button with loading state -->
+                <!-- Disable button during form submission -->
+                <button
+                  type="submit"
+                  :disabled="loading"
+                  class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <!-- Loading spinner shown during submission -->
+                  <span x-show="loading" class="mr-2">
+                    <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </span>
+                  <!-- Dynamic button text based on loading state and mode -->
+                  <span x-text="loading ? (isEditing ? 'Actualizando...' : 'Creando...') : (isEditing ? 'Actualizar Banda' : 'Crear Banda')"></span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+        
+        <!-- Help Section with Tips -->
+        <div class="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <svg class="h-5 w-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div class="ml-3">
+              <h3 class="text-sm font-medium text-blue-800" x-text="isEditing ? 'Consejos para editar tu banda' : 'Consejos para crear tu banda'">
+              </h3>
+              <div class="mt-2 text-sm text-blue-700">
+                <ul class="list-disc list-inside space-y-1">
+                  <li>Elige un nombre memorable y único</li>
+                  <li>Describe el estilo musical y la visión de tu banda</li>
+                  <li>Menciona los instrumentos principales</li>
+                  <li>Puedes agregar miembros más tarde</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Member Modal -->
+        <div x-show="showMemberModal" x-transition class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+          <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 bg-gray-600 bg-opacity-75 transition-opacity"></div>
+            <div class="relative z-10 inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div class="sm:flex sm:items-start">
+                  <div class="mt-3 text-center sm:mt-0 sm:text-left w-full">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4" x-text="editingMember ? 'Editar Miembro' : 'Agregar Miembro'"></h3>
+                    
+                    <form @submit.prevent="saveMember()" class="space-y-4">
+                      <!-- Member Name -->
+                      <div>
+                        <label for="member-name" class="block text-sm font-medium text-gray-700">
+                          Nombre *
+                        </label>
+                        <input
+                          id="member-name"
+                          x-model="newMember.name"
+                          type="text"
+                          required
+                          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                          placeholder="Nombre completo del miembro"
+                        />
+                      </div>
+                      
+                      <!-- Member Role -->
+                      <div>
+                        <label for="member-role" class="block text-sm font-medium text-gray-700">
+                          Rol/Instrumento *
+                        </label>
+                        <input
+                          id="member-role"
+                          x-model="newMember.role"
+                          type="text"
+                          required
+                          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                          placeholder="Ej: Guitarra, Bajo, Batería, Vocalista"
+                        />
+                      </div>
+                      
+                      <!-- Member Email -->
+                      <div>
+                        <label for="member-email" class="block text-sm font-medium text-gray-700">
+                          Email
+                        </label>
+                        <input
+                          id="member-email"
+                          x-model="newMember.email"
+                          type="email"
+                          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                          placeholder="email@ejemplo.com"
+                        />
+                      </div>
+                      
+                      <!-- Member Phone -->
+                      <div>
+                        <label for="member-phone" class="block text-sm font-medium text-gray-700">
+                          Teléfono
+                        </label>
+                        <input
+                          id="member-phone"
+                          x-model="newMember.phone"
+                          type="tel"
+                          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                          placeholder="+54 9 11 1234-5678"
+                        />
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  @click="saveMember()"
+                  class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  <span x-text="editingMember ? 'Actualizar' : 'Agregar'"></span>
+                </button>
+                <button
+                  type="button"
+                  @click="closeMemberModal()"
+                  class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</Layout> 

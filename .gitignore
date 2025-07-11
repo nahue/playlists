@@ -24,3 +24,5 @@ dist-ssr
 *.sw?
 
 tmp
+pg-data
+pg-data-test
