@@ -1,14 +1,8 @@
-# 🎵 Task & Playlist Manager
+# 🎵 Playlist & Band Manager
 
-A modern web application for managing tasks and music playlists, built with Go on the backend and Alpine.js on the frontend.
+A modern web application for managing music playlists and bands, built with Go on the backend and Alpine.js on the frontend.
 
 ## ✨ Features
-
-### 📝 Task Management
-- ✅ Create, edit and delete tasks
-- ✅ Modern and responsive interface
-- ✅ Real-time validation
-- ✅ Deletion confirmations
 
 ### 🎵 Playlist Management
 - ✅ Add songs with artist, title and username
@@ -19,8 +13,16 @@ A modern web application for managing tasks and music playlists, built with Go o
 ### 🎸 Band Management
 - ✅ Create and manage bands
 - ✅ Add and manage band members with roles
-- ✅ Member contact information
+- ✅ Member contact information (email, phone)
 - ✅ Band descriptions and details
+- ✅ User-scoped band ownership
+
+### 🔐 User Authentication
+- ✅ Secure user registration and login
+- ✅ JWT token-based authentication
+- ✅ Password hashing with bcrypt
+- ✅ User profile management
+- ✅ Protected API endpoints
 
 ### 🎨 User Interface
 - ✅ Modern design with Tailwind CSS
@@ -37,6 +39,7 @@ A modern web application for managing tasks and music playlists, built with Go o
 - **PostgreSQL** - Relational database
 - **SQLx** - Enhanced database operations
 - **JWT** - Authentication tokens
+- **bcrypt** - Password hashing
 - **CORS** - Cross-Origin Resource Sharing support
 
 ### Frontend
@@ -88,13 +91,13 @@ A modern web application for managing tasks and music playlists, built with Go o
 ## 🏗️ Architecture
 
 ### Application Structure
-The application uses a clean, modular architecture:
+The application uses a clean, modular architecture with dependency injection:
 
 - **`main.go`** - Entry point with server configuration
 - **`internal/app/`** - Application struct and lifecycle management
 - **`internal/routes/`** - Route configuration and middleware setup
-- **`internal/handlers/`** - HTTP request handlers
-- **`internal/database/`** - Database connection and operations
+- **`internal/handlers/`** - HTTP request handlers with dependency injection
+- **`internal/database/`** - Database repositories and connection management
 - **`migrations/`** - Database schema migrations
 
 ### Key Components
@@ -102,24 +105,31 @@ The application uses a clean, modular architecture:
 #### Application Struct
 ```go
 type Application struct {
-    Logger *log.Logger
-    Config *Config
-    DB     *sqlx.DB
+    Logger      *log.Logger
+    Config      *Config
+    DB          *sqlx.DB
+    BandHandler *handlers.BandHandler
+    AuthHandler *handlers.AuthHandler
 }
 ```
 
 The Application struct encapsulates:
 - Database connection management
+- Repository instances (Band, User)
+- Handler instances with dependency injection
 - Configuration handling
 - Logging setup
 - Application lifecycle
 
-#### Route Setup
-Routes are configured in `internal/routes/routes.go` with:
-- CORS middleware for frontend integration
-- Authentication middleware for protected routes
-- RESTful API endpoints
-- Static file serving
+#### Repository Pattern
+The application uses repository pattern for data access:
+- **`BandRepository`** - Manages bands and band members
+- **`UserRepository`** - Manages users and authentication
+
+#### Handler Pattern
+Handlers use dependency injection:
+- **`BandHandler`** - HTTP handlers for band operations
+- **`AuthHandler`** - HTTP handlers for authentication
 
 ## 📚 API Documentation
 
@@ -149,22 +159,11 @@ curl -X POST http://localhost:8080/auth/login \
   }'
 ```
 
-### Task Endpoints
-
-#### GET /api/todos
-Get all tasks for authenticated user.
+#### GET /api/profile
+Get current user's profile.
 ```bash
-curl http://localhost:8080/api/todos \
+curl http://localhost:8080/api/profile \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
-```
-
-#### POST /api/todos
-Create a new task.
-```bash
-curl -X POST http://localhost:8080/api/todos \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -d '{"text": "New task"}'
 ```
 
 ### Playlist Endpoints
@@ -206,8 +205,48 @@ curl -X POST http://localhost:8080/api/bands \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
     "name": "Band Name",
-    "description": "Band description"
+    "description": "Band description",
+    "members": [
+      {
+        "name": "John Doe",
+        "role": "Guitarist",
+        "email": "john@example.com"
+      }
+    ]
   }'
+```
+
+#### GET /api/bands/{id}
+Get a specific band.
+```bash
+curl http://localhost:8080/api/bands/1 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+#### PUT /api/bands/{id}
+Update a band.
+```bash
+curl -X PUT http://localhost:8080/api/bands/1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "name": "Updated Band Name",
+    "description": "Updated description"
+  }'
+```
+
+#### DELETE /api/bands/{id}
+Delete a band.
+```bash
+curl -X DELETE http://localhost:8080/api/bands/1 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+#### GET /api/bands/{bandId}/members
+Get all members of a band.
+```bash
+curl http://localhost:8080/api/bands/1/members \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
 #### POST /api/bands/{bandId}/members
@@ -219,8 +258,29 @@ curl -X POST http://localhost:8080/api/bands/1/members \
   -d '{
     "name": "Member Name",
     "role": "Guitar",
-    "email": "member@example.com"
+    "email": "member@example.com",
+    "phone": "123-456-7890"
   }'
+```
+
+#### PUT /api/bands/{bandId}/members/{memberId}
+Update a band member.
+```bash
+curl -X PUT http://localhost:8080/api/bands/1/members/1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "name": "Updated Name",
+    "role": "Updated Role",
+    "email": "updated@example.com"
+  }'
+```
+
+#### DELETE /api/bands/{bandId}/members/{memberId}
+Remove a member from a band.
+```bash
+curl -X DELETE http://localhost:8080/api/bands/1/members/1 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
 ## 🏗️ Project Structure
@@ -240,18 +300,16 @@ playlists/
 └── internal/              # Internal application code
     ├── app/               # Application struct and lifecycle
     ├── routes/            # Route configuration
-    ├── handlers/          # HTTP handlers
-    └── database/          # Database operations
+    ├── handlers/          # HTTP handlers with DI
+    └── database/          # Database repositories
 ```
 
 ## 🎯 Usage
 
-### Task Management
-1. Navigate to the "Task App" tab
-2. Type a new task in the text field
-3. Click "Add Task" or press Enter
-4. To edit, click the edit icon
-5. To delete, click the delete icon
+### User Authentication
+1. Register a new account or login with existing credentials
+2. Use the JWT token for authenticated API requests
+3. Access your profile information
 
 ### Playlist Management
 1. Navigate to the "Playlist Manager" tab
@@ -293,6 +351,7 @@ air
 go test ./...
 
 # Run specific package tests
+go test ./internal/database/...
 go test ./internal/app/...
 ```
 

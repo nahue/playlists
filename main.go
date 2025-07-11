@@ -13,6 +13,7 @@ import (
 func main() {
 	// Create new application instance with router
 	application := app.NewApplication()
+
 	// Create router and setup middleware
 	r := routes.SetupRoutes(application)
 

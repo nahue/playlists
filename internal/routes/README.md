@@ -38,7 +38,8 @@ Supports all common HTTP methods and includes necessary headers for authenticati
 ### Standard Middleware
 - **Logger** - Request logging
 - **Recoverer** - Panic recovery
-- **CleanPath** - URL path cleaning
+- **RequestID** - Request ID generation
+- **RealIP** - Real IP address handling
 - **GetHead** - GET/HEAD method handling
 
 ## Route Structure
@@ -54,12 +55,6 @@ All routes under `/api` require authentication via JWT token.
 #### User Management
 - `GET /api/profile` - Get user profile
 
-#### Task Management (`/api/todos`)
-- `GET /api/todos` - Get all tasks
-- `POST /api/todos` - Create new task
-- `PUT /api/todos/{id}` - Update task
-- `DELETE /api/todos/{id}` - Delete task
-
 #### Playlist Management (`/api/playlist`)
 - `GET /api/playlist` - Get all playlist entries
 - `POST /api/playlist` - Add new playlist entry
@@ -70,7 +65,7 @@ All routes under `/api` require authentication via JWT token.
 - `DELETE /api/playlist/{id}` - Delete entry
 
 #### Band Management (`/api/bands`)
-- `GET /api/bands` - Get all bands
+- `GET /api/bands` - Get all bands for authenticated user
 - `POST /api/bands` - Create new band
 - `GET /api/bands/{id}` - Get specific band
 - `PUT /api/bands/{id}` - Update band
@@ -85,11 +80,26 @@ All routes under `/api` require authentication via JWT token.
 ### Static Files
 - `/*` - Serves frontend files from `./frontend/dist`
 
+## Handler Integration
+
+Routes use dependency injection to access handlers:
+
+```go
+// Band routes use injected BandHandler
+r.Get("/", app.BandHandler.GetBands)
+r.Post("/", app.BandHandler.CreateBand)
+
+// Auth routes use injected AuthHandler
+r.Post("/register", app.AuthHandler.Register)
+r.Post("/login", app.AuthHandler.Login)
+```
+
 ## Authentication
 
-Protected routes use the `handlers.AuthMiddleware` which:
+Protected routes use the `app.AuthHandler.AuthMiddleware` which:
 - Validates JWT tokens from Authorization header
 - Extracts user information from token
+- Verifies user exists in database
 - Adds user context to request
 - Returns 401 for invalid/missing tokens
 
@@ -97,7 +107,7 @@ Protected routes use the `handlers.AuthMiddleware` which:
 
 ```go
 func main() {
-    // Create application instance
+    // Create application instance with all dependencies
     application := app.NewApplication()
 
     // Setup routes with application context
@@ -118,15 +128,16 @@ func main() {
 
 1. **Centralized Routing** - All routes defined in one place
 2. **Middleware Management** - Consistent middleware across all routes
-3. **Authentication Integration** - Seamless JWT authentication
+3. **Authentication Integration** - Seamless JWT authentication with database verification
 4. **CORS Support** - Frontend integration ready
 5. **Static File Serving** - Built-in frontend support
-6. **Application Context** - Access to database and configuration
+6. **Dependency Injection** - Clean access to handlers and repositories
+7. **User Isolation** - All band operations are scoped to authenticated user
 
 ## Dependencies
 
 - `github.com/go-chi/chi/v5` - HTTP router
 - `github.com/go-chi/chi/middleware` - Chi middleware
 - `github.com/go-chi/cors` - CORS middleware
-- `github.com/nahue/playlists/internal/app` - Application struct
-- `github.com/nahue/playlists/internal/handlers` - Request handlers 
+- `github.com/nahue/playlists/internal/app` - Application struct with handlers
+- `github.com/nahue/playlists/internal/handlers` - Request handlers with DI 

@@ -11,3 +11,16 @@ services:
       POSTGRES_USER: "postgres"
       POSTGRES_PASSWORD: "postgres"
     restart: unless-stopped
+  
+  db_test:
+    container_name: "playlist_db_test"
+    image: postgres:17-alpine
+    volumes:
+      - "./pg-data-test:/var/lib/postgresql/data:rw"
+    ports:
+      - "5455:5432"
+    environment:
+      POSTGRES_DB: "postgres"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+    restart: unless-stopped

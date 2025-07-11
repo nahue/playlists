@@ -27,14 +27,15 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 	// Standard middleware
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-	r.Use(middleware.CleanPath)
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
 	r.Use(middleware.GetHead)
 
 	// Auth routes (public)
 	r.Route("/auth", func(r chi.Router) {
-		r.Post("/register", handlers.Register)
-		r.Post("/login", handlers.Login)
-		r.Post("/logout", handlers.Logout)
+		r.Post("/register", app.AuthHandler.Register)
+		r.Post("/login", app.AuthHandler.Login)
+		r.Post("/logout", app.AuthHandler.Logout)
 	})
 
 	// Protected routes
@@ -43,16 +44,6 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 
 		// User profile
 		r.Get("/profile", handlers.GetProfile)
-
-		// Todo routes
-		r.Route("/todos", func(r chi.Router) {
-			r.Get("/", handlers.GetTodos)
-			r.Post("/", handlers.CreateTodo)
-			r.Route("/{id}", func(r chi.Router) {
-				r.Put("/", handlers.UpdateTodo)
-				r.Delete("/", handlers.DeleteTodo)
-			})
-		})
 
 		// Playlist routes
 		r.Route("/playlist", func(r chi.Router) {
@@ -69,20 +60,20 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 
 		// Band routes
 		r.Route("/bands", func(r chi.Router) {
-			r.Get("/", handlers.GetBands)
-			r.Post("/", handlers.CreateBand)
+			r.Get("/", app.BandHandler.GetBands)
+			r.Post("/", app.BandHandler.CreateBand)
 			r.Route("/{id}", func(r chi.Router) {
-				r.Get("/", handlers.GetBand)
-				r.Put("/", handlers.UpdateBand)
-				r.Delete("/", handlers.DeleteBand)
+				r.Get("/", app.BandHandler.GetBand)
+				r.Put("/", app.BandHandler.UpdateBand)
+				r.Delete("/", app.BandHandler.DeleteBand)
 			})
 			// Band members routes
 			r.Route("/{bandId}/members", func(r chi.Router) {
-				r.Get("/", handlers.GetBandMembers)
-				r.Post("/", handlers.AddBandMember)
+				r.Get("/", app.BandHandler.GetBandMembers)
+				r.Post("/", app.BandHandler.AddBandMember)
 				r.Route("/{memberId}", func(r chi.Router) {
-					r.Put("/", handlers.UpdateBandMember)
-					r.Delete("/", handlers.DeleteBandMember)
+					r.Put("/", app.BandHandler.UpdateBandMember)
+					r.Delete("/", app.BandHandler.DeleteBandMember)
 				})
 			})
 		})

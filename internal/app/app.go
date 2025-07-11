@@ -8,13 +8,16 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/joho/godotenv"
 	"github.com/nahue/playlists/internal/database"
+	"github.com/nahue/playlists/internal/handlers"
 )
 
 // Application represents the main application instance
 type Application struct {
-	Logger *log.Logger
-	Config *Config
-	DB     *sqlx.DB
+	Logger      *log.Logger
+	Config      *Config
+	DB          *sqlx.DB
+	BandHandler *handlers.BandHandler
+	AuthHandler *handlers.AuthHandler
 }
 
 // Config holds application configuration
@@ -52,10 +55,20 @@ func NewApplication() *Application {
 
 	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Lshortfile)
 
+	// Initialize repositories
+	bandRepo := database.NewBandRepository(db)
+	userRepo := database.NewUserRepository(db)
+
+	// Initialize handlers
+	bandHandler := handlers.NewBandHandler(bandRepo, logger)
+	authHandler := handlers.NewAuthHandler(userRepo, logger)
+
 	return &Application{
-		Logger: logger,
-		Config: NewConfig(),
-		DB:     db,
+		Logger:      logger,
+		Config:      NewConfig(),
+		DB:          db,
+		BandHandler: bandHandler,
+		AuthHandler: authHandler,
 	}
 }
 

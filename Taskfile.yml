@@ -16,13 +16,81 @@ tasks:
       - frontend
 
   backend:
+    desc: Start backend
     cmds:
       - air
 
   frontend:
+    desc: Start frontend
     dir: ./frontend
     cmds:
       - bun run dev
+
+  db:
+    desc: Start database container
+    cmds:
+      - docker compose up -d
+
+  db-down:
+    desc: Stop database container
+    cmds:
+      - docker compose down
+
+  migrate:
+    desc: Run database migrations (was scripts/migrate.sh)
+    env:
+      DB_HOST: '{{.DB_HOST | default "localhost"}}'
+      DB_PORT: '{{.DB_PORT | default "5454"}}'
+      DB_USER: '{{.DB_USER | default "postgres"}}'
+      DB_PASSWORD: '{{.DB_PASSWORD | default "postgres"}}'
+      DB_NAME: '{{.DB_NAME | default "postgres"}}'
+      DB_SSLMODE: '{{.DB_SSLMODE | default "disable"}}'
+    cmds:
+      - |
+        DB_URL="host=$DB_HOST port=$DB_PORT user=$DB_USER password=$DB_PASSWORD dbname=$DB_NAME sslmode=$DB_SSLMODE"
+        echo "Running database migrations..."
+        echo "Database: $DB_HOST:$DB_PORT/$DB_NAME"
+        echo "User: $DB_USER"
+        echo ""
+        goose -dir ./migrations postgres "$DB_URL" up
+        echo ""
+        echo "Migrations completed successfully!"
+
+  test-db:
+    desc: Test database connection (was scripts/test-db.sh)
+    env:
+      DB_HOST: '{{.DB_HOST | default "localhost"}}'
+      DB_PORT: '{{.DB_PORT | default "5454"}}'
+      DB_USER: '{{.DB_USER | default "postgres"}}'
+      DB_PASSWORD: '{{.DB_PASSWORD | default "postgres"}}'
+      DB_NAME: '{{.DB_NAME | default "postgres"}}'
+      DB_SSLMODE: '{{.DB_SSLMODE | default "disable"}}'
+    cmds:
+      - |
+        DB_URL="host=$DB_HOST port=$DB_PORT user=$DB_USER password=$DB_PASSWORD dbname=$DB_NAME sslmode=$DB_SSLMODE"
+        echo "Testing database connection..."
+        echo "Database: $DB_HOST:$DB_PORT/$DB_NAME"
+        echo "User: $DB_USER"
+        echo ""
+        if command -v psql >/dev/null 2>&1; then
+          echo "Testing with psql..."
+          PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c "SELECT version();" || {
+            echo "❌ Database connection failed with psql"
+            exit 1
+          }
+          echo "✅ Database connection successful with psql"
+        else
+          echo "⚠️  psql not found, skipping psql test"
+        fi
+        echo ""
+        echo "Testing with Goose..."
+        goose -dir ./migrations postgres "$DB_URL" status || {
+          echo "❌ Database connection failed with Goose"
+          exit 1
+        }
+        echo "✅ Database connection successful with Goose"
+        echo ""
+        echo "🎉 All database connection tests passed!"
 
   goose:
     env:
