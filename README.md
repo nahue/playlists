@@ -339,20 +339,20 @@ air
 ### Database Management
 ```bash
 # Run migrations
-./scripts/migrate.sh
+task migrate
 
 # Test database connection
-./scripts/test-db.sh
+task test-db
 ```
 
 ### Testing
 ```bash
 # Run all tests
-go test ./...
+task test
 
-# Run specific package tests
-go test ./internal/database/...
-go test ./internal/app/...
+# Run specific test suites
+go test ./internal/test -run TestBandRepository
+go test ./internal/test -run TestUserRepository
 ```
 
 ## 🚀 Deployment

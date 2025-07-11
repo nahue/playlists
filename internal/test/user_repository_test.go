@@ -1,9 +1,10 @@
-package database
+package test
 
 import (
 	"testing"
 
 	_ "github.com/lib/pq"
+	"github.com/nahue/playlists/internal/database"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,9 +13,9 @@ func TestUserRepository_CreateUser(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewUserRepository(db)
+	repo := database.NewUserRepository(db)
 
-	req := CreateUserRequest{
+	req := database.CreateUserRequest{
 		FirstName: "John",
 		LastName:  "Doe",
 		Email:     "john@example.com",
@@ -34,9 +35,9 @@ func TestUserRepository_CreateUser_DuplicateEmail(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewUserRepository(db)
+	repo := database.NewUserRepository(db)
 
-	req := CreateUserRequest{
+	req := database.CreateUserRequest{
 		FirstName: "John",
 		LastName:  "Doe",
 		Email:     "john@example.com",
@@ -57,9 +58,9 @@ func TestUserRepository_GetUserByID(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewUserRepository(db)
+	repo := database.NewUserRepository(db)
 
-	req := CreateUserRequest{
+	req := database.CreateUserRequest{
 		FirstName: "Jane",
 		LastName:  "Smith",
 		Email:     "jane@example.com",
@@ -87,9 +88,9 @@ func TestUserRepository_GetUserByEmail(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewUserRepository(db)
+	repo := database.NewUserRepository(db)
 
-	req := CreateUserRequest{
+	req := database.CreateUserRequest{
 		FirstName: "Bob",
 		LastName:  "Johnson",
 		Email:     "bob@example.com",
@@ -118,9 +119,9 @@ func TestUserRepository_AuthenticateUser(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewUserRepository(db)
+	repo := database.NewUserRepository(db)
 
-	req := CreateUserRequest{
+	req := database.CreateUserRequest{
 		FirstName: "Alice",
 		LastName:  "Brown",
 		Email:     "alice@example.com",
@@ -131,7 +132,7 @@ func TestUserRepository_AuthenticateUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test successful authentication
-	loginReq := LoginRequest{
+	loginReq := database.LoginRequest{
 		Email:    "alice@example.com",
 		Password: "password123",
 	}
@@ -163,7 +164,7 @@ func TestUserRepository_UpdateUser(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewUserRepository(db)
+	repo := database.NewUserRepository(db)
 
 	// Debug: Check what's in the database before creating user
 	var count int
@@ -171,7 +172,7 @@ func TestUserRepository_UpdateUser(t *testing.T) {
 	require.NoError(t, err)
 	t.Logf("Users in database before test: %d", count)
 
-	req := CreateUserRequest{
+	req := database.CreateUserRequest{
 		FirstName: "Charlie",
 		LastName:  "Wilson",
 		Email:     "charlie_update@example.com",
@@ -182,7 +183,7 @@ func TestUserRepository_UpdateUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Update user
-	updateReq := UpdateUserRequest{
+	updateReq := database.UpdateUserRequest{
 		FirstName: "Charles",
 		LastName:  "Williams",
 		Email:     "charles_updated@example.com",
@@ -205,10 +206,10 @@ func TestUserRepository_UpdateUser_DuplicateEmail(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewUserRepository(db)
+	repo := database.NewUserRepository(db)
 
 	// Create first user
-	req1 := CreateUserRequest{
+	req1 := database.CreateUserRequest{
 		FirstName: "User1",
 		LastName:  "Last1",
 		Email:     "user1@example.com",
@@ -218,7 +219,7 @@ func TestUserRepository_UpdateUser_DuplicateEmail(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create second user
-	req2 := CreateUserRequest{
+	req2 := database.CreateUserRequest{
 		FirstName: "User2",
 		LastName:  "Last2",
 		Email:     "user2@example.com",
@@ -228,7 +229,7 @@ func TestUserRepository_UpdateUser_DuplicateEmail(t *testing.T) {
 	require.NoError(t, err)
 
 	// Try to update second user with first user's email
-	updateReq := UpdateUserRequest{
+	updateReq := database.UpdateUserRequest{
 		Email: "user1@example.com",
 	}
 
@@ -242,9 +243,9 @@ func TestUserRepository_UpdatePassword(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewUserRepository(db)
+	repo := database.NewUserRepository(db)
 
-	req := CreateUserRequest{
+	req := database.CreateUserRequest{
 		FirstName: "David",
 		LastName:  "Miller",
 		Email:     "david@example.com",
@@ -259,7 +260,7 @@ func TestUserRepository_UpdatePassword(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify new password works
-	loginReq := LoginRequest{
+	loginReq := database.LoginRequest{
 		Email:    "david@example.com",
 		Password: "newpassword",
 	}
@@ -279,9 +280,9 @@ func TestUserRepository_DeleteUser(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewUserRepository(db)
+	repo := database.NewUserRepository(db)
 
-	req := CreateUserRequest{
+	req := database.CreateUserRequest{
 		FirstName: "Eve",
 		LastName:  "Davis",
 		Email:     "eve@example.com",
@@ -315,10 +316,10 @@ func TestUserRepository_GetAllUsers(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewUserRepository(db)
+	repo := database.NewUserRepository(db)
 
 	// Create multiple users
-	users := []CreateUserRequest{
+	users := []database.CreateUserRequest{
 		{FirstName: "User1", LastName: "Last1", Email: "user1@example.com", Password: "password123"},
 		{FirstName: "User2", LastName: "Last2", Email: "user2@example.com", Password: "password123"},
 		{FirstName: "User3", LastName: "Last3", Email: "user3@example.com", Password: "password123"},
@@ -348,7 +349,7 @@ func TestUserRepository_GetUsersCount(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewUserRepository(db)
+	repo := database.NewUserRepository(db)
 
 	// Initially should be 0
 	count, err := repo.GetUsersCount()
@@ -356,7 +357,7 @@ func TestUserRepository_GetUsersCount(t *testing.T) {
 	assert.Equal(t, 0, count)
 
 	// Create a user
-	req := CreateUserRequest{
+	req := database.CreateUserRequest{
 		FirstName: "Test",
 		LastName:  "User",
 		Email:     "test@example.com",

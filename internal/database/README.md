@@ -1,36 +1,30 @@
 # Database Package
 
-This package provides database connectivity and repository patterns for the playlists application.
+This package provides database functionality for the Playlists application using PostgreSQL and SQLx.
 
-## Overview
+## Features
 
-The database package contains:
-- Database connection management
-- Repository implementations for data access
-- Database models and request/response types
+- **PostgreSQL Integration**: Full PostgreSQL support with connection pooling
+- **SQLx Enhanced**: Enhanced database operations with struct scanning
+- **Repository Pattern**: Clean data access layer with dependency injection
+- **Transaction Support**: Full transaction support for complex operations
+- **Connection Management**: Proper connection lifecycle management
+- **Error Handling**: Comprehensive error handling and wrapping
 
-## Database Connection
-
-### Configuration
-
-The database connection is configured using environment variables:
-
-```bash
-DB_HOST=localhost
-DB_PORT=5454
-DB_USER=postgres
-DB_PASSWORD=postgres
-DB_NAME=postgres
-DB_SSLMODE=disable
-```
-
-### Usage
+## Usage
 
 ```go
 import "github.com/nahue/playlists/internal/database"
 
 // Create database configuration
-config := database.NewConfig()
+config := &database.Config{
+    Host:     "localhost",
+    Port:     "5454",
+    User:     "postgres",
+    Password: "postgres",
+    DBName:   "postgres",
+    SSLMode:  "disable",
+}
 
 // Open database connection
 db, err := database.Open(config)
@@ -38,6 +32,10 @@ if err != nil {
     log.Fatal(err)
 }
 defer db.Close()
+
+// Create repositories
+bandRepo := database.NewBandRepository(db)
+userRepo := database.NewUserRepository(db)
 ```
 
 ## Repositories
@@ -48,11 +46,11 @@ The `BandRepository` provides a clean interface for managing bands and band memb
 
 #### Features
 
-- **CRUD Operations**: Create, read, update, and delete bands
+- **Band Management**: Create, read, update, and delete bands
 - **Member Management**: Add, update, and delete band members
-- **User Isolation**: All operations are scoped to the authenticated user
-- **Transaction Support**: Atomic operations for band creation with members
-- **Error Handling**: Comprehensive error handling with meaningful messages
+- **User Isolation**: Bands are scoped to their owners
+- **Transaction Support**: Complex operations use transactions
+- **Comprehensive CRUD**: Full band lifecycle management
 
 #### Usage
 
@@ -62,13 +60,12 @@ import "github.com/nahue/playlists/internal/database"
 // Create repository instance
 repo := database.NewBandRepository(db)
 
-// Create a new band with members
+// Create a new band
 req := database.CreateBandRequest{
     Name:        "My Band",
     Description: "A great band",
     Members: []database.BandMember{
-        {Name: "John Doe", Role: "Guitarist", Email: "john@example.com"},
-        {Name: "Jane Smith", Role: "Singer", Email: "jane@example.com"},
+        {Name: "John", Role: "Guitarist"},
     },
 }
 
@@ -342,23 +339,23 @@ The repositories rely on the application layer for input validation but include:
 
 ## Testing
 
-The repositories include comprehensive tests:
+Tests are located in the `internal/test` package and include comprehensive tests for all repository methods:
 
 ```bash
 # Run all database tests
-go test ./internal/database
+go test ./internal/test
 
 # Run specific repository tests
-go test ./internal/database -run TestBandRepository
-go test ./internal/database -run TestUserRepository
+go test ./internal/test -run TestBandRepository
+go test ./internal/test -run TestUserRepository
 
 # Run tests with verbose output
-go test ./internal/database -v
+go test ./internal/test -v
 ```
 
 ### Test Setup
 
-Tests use a separate test database (`postgres_test`) and include:
+Tests use a separate test database and include:
 
 - Automatic table cleanup between tests
 - Test user creation utilities
@@ -372,164 +369,63 @@ The repositories use Go's error wrapping for meaningful error messages:
 
 ```go
 if err != nil {
-    return nil, fmt.Errorf("failed to create user: %w", err)
+    return fmt.Errorf("failed to create user: %w", err)
 }
 ```
 
-Common error scenarios:
-- Database connection issues
-- Constraint violations
-- Not found scenarios (returns `nil` instead of error)
-- Authentication failures
-- Duplicate email addresses
+## Database Operations
 
-## Performance Considerations
+### Using SQLx with Repositories
+The application uses SQLx for enhanced database operations within repositories:
 
-- Uses `sqlx` for better performance and convenience
-- Implements connection pooling
-- Uses indexes on frequently queried columns
-- Batches operations in transactions where appropriate
-- Orders results for consistent pagination 
+```go
+// Query with struct scanning
+var users []User
+err := db.Select(&users, "SELECT * FROM users WHERE active = $1", true)
 
-# Database Tests
+// Query single row
+var user User
+err := db.Get(&user, "SELECT * FROM users WHERE id = $1", userID)
 
-This directory contains database tests for the Playlists application. The tests use a real PostgreSQL database and automatically run migrations before executing tests.
+// Execute with result
+result, err := db.Exec("INSERT INTO users (name, email) VALUES ($1, $2)", name, email)
 
-## Test Setup
+// Transaction
+tx, err := db.Beginx()
+if err != nil {
+    return err
+}
+defer tx.Rollback()
 
-### Automatic Migration
+// Use transaction
+err = tx.Exec("INSERT INTO users (name) VALUES ($1)", name)
+if err != nil {
+    return err
+}
 
-Tests automatically run database migrations before execution using the following components:
-
-- **`test_setup.go`** - Contains the centralized test setup logic
-- **`TestMain`** - Runs migrations once before all tests
-- **`setupTestDB`** - Ensures database is migrated and returns a clean connection
-- **`cleanupTables`** - Cleans up test data between tests
-
-### Database Configuration
-
-Tests use the following database configuration:
-- **Host**: localhost
-- **Port**: 5455
-- **User**: postgres
-- **Password**: postgres
-- **Database**: postgres
-- **SSL Mode**: disable
-
-### Migration Process
-
-1. **TestMain** runs once before all tests
-2. Connects to the test database
-3. Runs all migrations using Goose
-4. Provides a clean database for all tests
-
-### Test Isolation
-
-Each test gets a clean database state:
-- Tables are cleaned between tests
-- No test data persists between test runs
-- Foreign key constraints are respected during cleanup
-
-## Running Tests
-
-### Prerequisites
-
-1. **PostgreSQL** running on port 5455
-2. **Goose** installed and available in PATH
-3. **Test database** accessible with the configured credentials
-
-### Running All Database Tests
-
-```bash
-# From the project root
-go test ./internal/database/...
-
-# From the database directory
-go test ./...
+err = tx.Commit()
 ```
 
-### Running Specific Tests
+## Security Features
 
-```bash
-# Run only band repository tests
-go test -run TestBandRepository
+### Password Security
+- **bcrypt Hashing**: Passwords are hashed using bcrypt with default cost
+- **Secure Comparison**: Constant-time password verification
+- **No Plain Text**: Passwords are never stored or returned in plain text
 
-# Run only user repository tests
-go test -run TestUserRepository
+### User Isolation
+- **Scoped Operations**: All band operations are scoped to the authenticated user
+- **Authorization**: Users can only access their own data
+- **Database Constraints**: Foreign key constraints ensure data integrity
 
-# Run migration verification test
-go test -run TestMigrationsApplied
-```
+## Performance Features
 
-### Test Files
+### Connection Pooling
+- **Optimized Connections**: Efficient connection pool management
+- **Connection Limits**: Configurable connection pool limits
+- **Connection Timeouts**: Proper timeout handling
 
-- **`test_setup.go`** - Centralized test setup and migration logic
-- **`test_migrations.go`** - Verifies that migrations are applied correctly
-- **`band_repository_test.go`** - Tests for band and band member operations
-- **`user_repository_test.go`** - Tests for user operations and authentication
-
-## Test Helper Functions
-
-### `setupTestDB(t *testing.T) *sqlx.DB`
-
-Returns a database connection with:
-- Migrations applied
-- Clean tables
-- Proper error handling
-
-### `cleanupTables(t *testing.T, db *sqlx.DB)`
-
-Cleans all test data in the correct order:
-1. `band_members` (due to foreign key constraints)
-2. `bands`
-3. `playlist_entries`
-4. `users`
-
-### `createTestUser(t *testing.T, db *sqlx.DB, email string) int`
-
-Creates a test user and returns the user ID:
-- Uses standard test data
-- Handles errors properly
-- Returns the created user's ID
-
-## Migration Verification
-
-The `TestMigrationsApplied` test verifies that:
-- All expected tables exist
-- Tables have the correct number of columns
-- Database schema is properly set up
-
-## Troubleshooting
-
-### Migration Failures
-
-If migrations fail, check:
-1. PostgreSQL is running on port 5455
-2. Database credentials are correct
-3. Goose is installed and in PATH
-4. Migration files are accessible
-
-### Connection Issues
-
-If database connection fails:
-1. Verify PostgreSQL is running
-2. Check port 5455 is accessible
-3. Confirm database credentials
-4. Ensure SSL mode is disabled
-
-### Test Failures
-
-If tests fail:
-1. Check that migrations ran successfully
-2. Verify table schemas match expectations
-3. Ensure foreign key constraints are properly set up
-4. Check that cleanup is working correctly
-
-## Best Practices
-
-1. **Always use `setupTestDB`** for database connections
-2. **Clean up test data** between tests (handled automatically)
-3. **Use descriptive test names** that indicate what is being tested
-4. **Test both success and failure cases**
-5. **Verify database state** after operations
-6. **Use transactions** for complex test scenarios when needed 
+### Query Optimization
+- **Prepared Statements**: Uses prepared statements for better performance
+- **Batch Operations**: Batches operations in transactions where appropriate
+- **Orders results for consistent pagination** 

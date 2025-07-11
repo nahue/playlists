@@ -1,4 +1,4 @@
-package database
+package test
 
 import (
 	"fmt"
@@ -9,13 +9,14 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	"github.com/nahue/playlists/internal/database"
 	"github.com/stretchr/testify/require"
 )
 
 // setupTestDB ensures the test database is migrated and returns a connection
 func setupTestDB(t *testing.T) *sqlx.DB {
 	// Test database configuration
-	config := &Config{
+	config := &database.Config{
 		Host:     "localhost",
 		Port:     "5455",
 		User:     "postgres",
@@ -25,7 +26,7 @@ func setupTestDB(t *testing.T) *sqlx.DB {
 	}
 
 	// Connect to database
-	db, err := Open(config)
+	db, err := database.Open(config)
 	require.NoError(t, err)
 
 	// Clean up tables before each test
@@ -84,7 +85,7 @@ func createTestUser(t *testing.T, db *sqlx.DB, email string) int {
 // TestMain runs once before all tests to set up the test environment
 func TestMain(m *testing.M) {
 	// Run migrations before any tests
-	config := &Config{
+	config := &database.Config{
 		Host:     "localhost",
 		Port:     "5455",
 		User:     "postgres",

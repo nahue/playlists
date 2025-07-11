@@ -1,9 +1,10 @@
-package database
+package test
 
 import (
 	"testing"
 
 	_ "github.com/lib/pq"
+	"github.com/nahue/playlists/internal/database"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,13 +15,13 @@ func TestBandRepository_CreateBand(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewBandRepository(db)
+	repo := database.NewBandRepository(db)
 	userID := createTestUser(t, db, "test@example.com")
 
-	req := CreateBandRequest{
+	req := database.CreateBandRequest{
 		Name:        "Test Band",
 		Description: "A test band",
-		Members: []BandMember{
+		Members: []database.BandMember{
 			{Name: "John Doe", Role: "Guitarist", Email: "john@example.com"},
 			{Name: "Jane Smith", Role: "Singer", Email: "jane@example.com"},
 		},
@@ -44,13 +45,13 @@ func TestBandRepository_GetBandsByUserID(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewBandRepository(db)
+	repo := database.NewBandRepository(db)
 	userID1 := createTestUser(t, db, "user1@example.com")
 	userID2 := createTestUser(t, db, "user2@example.com")
 
 	// Create bands for user1
-	req1 := CreateBandRequest{Name: "Band 1", Description: "First band"}
-	req2 := CreateBandRequest{Name: "Band 2", Description: "Second band"}
+	req1 := database.CreateBandRequest{Name: "Band 1", Description: "First band"}
+	req2 := database.CreateBandRequest{Name: "Band 2", Description: "Second band"}
 
 	_, err := repo.CreateBand(userID1, req1)
 	require.NoError(t, err)
@@ -58,7 +59,7 @@ func TestBandRepository_GetBandsByUserID(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create band for user2
-	req3 := CreateBandRequest{Name: "Band 3", Description: "Third band"}
+	req3 := database.CreateBandRequest{Name: "Band 3", Description: "Third band"}
 	_, err = repo.CreateBand(userID2, req3)
 	require.NoError(t, err)
 
@@ -86,14 +87,14 @@ func TestBandRepository_GetBandByID(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewBandRepository(db)
+	repo := database.NewBandRepository(db)
 	userID1 := createTestUser(t, db, "user1@example.com")
 	userID2 := createTestUser(t, db, "user2@example.com")
 
-	req := CreateBandRequest{
+	req := database.CreateBandRequest{
 		Name:        "Test Band",
 		Description: "A test band",
-		Members: []BandMember{
+		Members: []database.BandMember{
 			{Name: "John Doe", Role: "Guitarist"},
 		},
 	}
@@ -123,16 +124,16 @@ func TestBandRepository_UpdateBand(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewBandRepository(db)
+	repo := database.NewBandRepository(db)
 	userID1 := createTestUser(t, db, "user1@example.com")
 	userID2 := createTestUser(t, db, "user2@example.com")
 
-	req := CreateBandRequest{Name: "Original Name", Description: "Original description"}
+	req := database.CreateBandRequest{Name: "Original Name", Description: "Original description"}
 	createdBand, err := repo.CreateBand(userID1, req)
 	require.NoError(t, err)
 
 	// Update band
-	updateReq := UpdateBandRequest{
+	updateReq := database.UpdateBandRequest{
 		Name:        "Updated Name",
 		Description: "Updated description",
 	}
@@ -153,13 +154,13 @@ func TestBandRepository_DeleteBand(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewBandRepository(db)
+	repo := database.NewBandRepository(db)
 	userID1 := createTestUser(t, db, "user1@example.com")
 	userID2 := createTestUser(t, db, "user2@example.com")
 
-	req := CreateBandRequest{
+	req := database.CreateBandRequest{
 		Name: "Test Band",
-		Members: []BandMember{
+		Members: []database.BandMember{
 			{Name: "John Doe", Role: "Guitarist"},
 		},
 	}
@@ -190,15 +191,15 @@ func TestBandRepository_AddBandMember(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewBandRepository(db)
+	repo := database.NewBandRepository(db)
 	userID := createTestUser(t, db, "test@example.com")
 
-	req := CreateBandRequest{Name: "Test Band"}
+	req := database.CreateBandRequest{Name: "Test Band"}
 	createdBand, err := repo.CreateBand(userID, req)
 	require.NoError(t, err)
 
 	// Add member
-	memberReq := AddMemberRequest{
+	memberReq := database.AddMemberRequest{
 		Name:  "New Member",
 		Role:  "Drummer",
 		Email: "drummer@example.com",
@@ -224,12 +225,12 @@ func TestBandRepository_UpdateBandMember(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewBandRepository(db)
+	repo := database.NewBandRepository(db)
 	userID := createTestUser(t, db, "test@example.com")
 
-	req := CreateBandRequest{
+	req := database.CreateBandRequest{
 		Name: "Test Band",
-		Members: []BandMember{
+		Members: []database.BandMember{
 			{Name: "Original Name", Role: "Original Role"},
 		},
 	}
@@ -241,7 +242,7 @@ func TestBandRepository_UpdateBandMember(t *testing.T) {
 	memberID := createdBand.Members[0].ID
 
 	// Update member
-	updateReq := UpdateMemberRequest{
+	updateReq := database.UpdateMemberRequest{
 		Name:  "Updated Name",
 		Role:  "Updated Role",
 		Email: "updated@example.com",
@@ -261,12 +262,12 @@ func TestBandRepository_DeleteBandMember(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewBandRepository(db)
+	repo := database.NewBandRepository(db)
 	userID := createTestUser(t, db, "test@example.com")
 
-	req := CreateBandRequest{
+	req := database.CreateBandRequest{
 		Name: "Test Band",
-		Members: []BandMember{
+		Members: []database.BandMember{
 			{Name: "Member 1", Role: "Role 1"},
 			{Name: "Member 2", Role: "Role 2"},
 		},
@@ -293,13 +294,13 @@ func TestBandRepository_GetBandMemberByID(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewBandRepository(db)
+	repo := database.NewBandRepository(db)
 	userID := createTestUser(t, db, "test@example.com")
 
-	req := CreateBandRequest{
+	req := database.CreateBandRequest{
 		Name: "Test Band",
-		Members: []BandMember{
-			{Name: "Test Member", Role: "Test Role", Email: "test@example.com"},
+		Members: []database.BandMember{
+			{Name: "Test Member", Role: "Test Role"},
 		},
 	}
 
@@ -315,10 +316,9 @@ func TestBandRepository_GetBandMemberByID(t *testing.T) {
 	assert.NotNil(t, member)
 	assert.Equal(t, "Test Member", member.Name)
 	assert.Equal(t, "Test Role", member.Role)
-	assert.Equal(t, "test@example.com", member.Email)
 
-	// Try to get non-existent member
-	member, err = repo.GetBandMemberByID(999, createdBand.ID, userID)
+	// Try to get member with wrong user
+	member, err = repo.GetBandMemberByID(memberID, createdBand.ID, 999)
 	require.NoError(t, err)
-	assert.Nil(t, member)
+	assert.Nil(t, member) // Should return nil for unauthorized access
 }

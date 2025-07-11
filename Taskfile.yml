@@ -56,6 +56,12 @@ tasks:
         echo ""
         echo "Migrations completed successfully!"
 
+  test:
+    desc: Run tests
+    dir: internal/test
+    cmds:
+      - go test -v
+
   test-db:
     desc: Test database connection (was scripts/test-db.sh)
     env:
