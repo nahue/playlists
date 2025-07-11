@@ -48,11 +48,6 @@ func NewApplication() *Application {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
-	// Test database connection
-	if err := database.TestConnection(db); err != nil {
-		log.Printf("Database connection test failed: %v", err)
-	}
-
 	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Lshortfile)
 
 	// Initialize repositories
