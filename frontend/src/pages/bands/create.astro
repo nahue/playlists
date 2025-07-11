@@ -1,0 +1,258 @@
+---
+import Layout from '../../layouts/Layout.astro';
+---
+
+<script>
+  import { requireAuth } from '../../utils/auth.js';
+  
+  // Require authentication - only run on client side to avoid SSR issues
+  if (typeof window !== 'undefined') {
+    requireAuth();
+  }
+</script>
+
+<Layout>
+  <div class="min-h-screen bg-gray-50 py-8">
+    <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+      <!-- Alpine.js data object containing form state and methods -->
+      <div x-data="{
+        // Form data object to store band information
+        form: {
+          name: '',
+          description: ''
+        },
+        loading: false,  // Loading state for form submission
+        error: '',       // Error message display
+        success: '',     // Success message display
+        isEditing: false, // Whether we're editing an existing band
+        bandId: null,    // ID of the band being edited
+        
+        // Initialize the component
+        init() {
+          // Check if we're editing by looking for band ID in URL
+          const urlParams = new URLSearchParams(window.location.search);
+          const bandId = urlParams.get('id');
+          
+          if (bandId) {
+            this.isEditing = true;
+            this.bandId = bandId;
+            this.loadBandData(bandId);
+          }
+        },
+        
+        // Load existing band data for editing
+        async loadBandData(bandId) {
+          this.loading = true;
+          this.error = '';
+          
+          try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`http://localhost:8080/api/bands/${bandId}`, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            
+            if (response.ok) {
+              const band = await response.json();
+              this.form.name = band.name;
+              this.form.description = band.description || '';
+            } else {
+              this.error = 'Error al cargar los datos de la banda';
+            }
+          } catch (error) {
+            this.error = 'Error de conexión con el servidor';
+          } finally {
+            this.loading = false;
+          }
+        },
+        
+        // Main function to create or update a band
+        async createBand() {
+          // Validate required fields
+          if (!this.form.name.trim()) {
+            this.error = 'El nombre de la banda es requerido';
+            return;
+          }
+          
+          // Set loading state and clear previous errors
+          this.loading = true;
+          this.error = '';
+          
+          try {
+            // Get authentication token from localStorage
+            const token = localStorage.getItem('token');
+            
+            // Determine the API endpoint and method based on whether we're editing
+            const url = this.isEditing 
+              ? `http://localhost:8080/api/bands/${this.bandId}`
+              : 'http://localhost:8080/api/bands';
+            const method = this.isEditing ? 'PUT' : 'POST';
+            
+            // Make API call to create or update band
+            const response = await fetch(url, {
+              method: method,
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`  // Include auth token
+              },
+              body: JSON.stringify({
+                name: this.form.name.trim(),
+                description: this.form.description.trim()
+              })
+            });
+            
+            // Handle successful response
+            if (response.ok) {
+              this.success = this.isEditing 
+                ? '¡Banda actualizada exitosamente!' 
+                : '¡Banda creada exitosamente!';
+              // Redirect to bands list after 1.5 seconds
+              setTimeout(() => {
+                window.location.href = '/bands';
+              }, 1500);
+            } else {
+              // Handle API errors
+              const errorData = await response.text();
+              this.error = 'Error: ' + errorData;
+            }
+          } catch (error) {
+            // Handle network/connection errors
+            this.error = 'Error de conexión con el servidor';
+          } finally {
+            // Always reset loading state
+            this.loading = false;
+          }
+        }
+      }">
+        
+        <!-- Page Header Section -->
+        <div class="mb-8">
+          <div class="flex items-center justify-between">
+            <div>
+              <h1 class="text-3xl font-bold text-gray-900" x-text="isEditing ? 'Editar Banda' : 'Crear Nueva Banda'"></h1>
+              <p class="mt-2 text-sm text-gray-600" x-text="isEditing ? 'Modifica la información de tu banda' : 'Completa la información para crear tu nueva banda'">
+              </p>
+            </div>
+            <!-- Back button to return to bands list -->
+            <a
+              href="/bands"
+              class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              <svg class="-ml-1 mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Volver
+            </a>
+          </div>
+        </div>
+        
+        <!-- Error Message Display -->
+        <div x-show="error" x-transition class="mb-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          <span x-text="error"></span>
+        </div>
+        
+        <!-- Success Message Display -->
+        <div x-show="success" x-transition class="mb-6 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+          <span x-text="success"></span>
+        </div>
+        
+        <!-- Main Form Section -->
+        <div class="bg-white shadow rounded-lg">
+          <div class="px-4 py-5 sm:p-6">
+            <!-- Band creation/editing form with Alpine.js event handling -->
+            <form @submit.prevent="createBand()" class="space-y-6">
+              <!-- Band Name Input Field -->
+              <div>
+                <label for="band-name" class="block text-sm font-medium text-gray-700">
+                  Nombre de la Banda *
+                </label>
+                <!-- Two-way data binding with Alpine.js -->
+                <input
+                  id="band-name"
+                  x-model="form.name"
+                  type="text"
+                  required
+                  class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  placeholder="Ingresa el nombre de tu banda"
+                />
+                <p class="mt-2 text-sm text-gray-500">
+                  El nombre debe ser único y representativo de tu banda
+                </p>
+              </div>
+              
+              <!-- Band Description Textarea -->
+              <div>
+                <label for="band-description" class="block text-sm font-medium text-gray-700">
+                  Descripción
+                </label>
+                <!-- Two-way data binding with Alpine.js -->
+                <textarea
+                  id="band-description"
+                  x-model="form.description"
+                  rows="4"
+                  class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  placeholder="Describe tu banda, su estilo musical, integrantes, etc. (opcional)"
+                ></textarea>
+                <p class="mt-2 text-sm text-gray-500">
+                  Proporciona información adicional sobre tu banda
+                </p>
+              </div>
+              
+              <!-- Form Action Buttons -->
+              <div class="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+                <!-- Cancel button - returns to bands list -->
+                <a
+                  href="/bands"
+                  class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  Cancelar
+                </a>
+                <!-- Submit button with loading state -->
+                <!-- Disable button during form submission -->
+                <button
+                  type="submit"
+                  :disabled="loading"
+                  class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <!-- Loading spinner shown during submission -->
+                  <span x-show="loading" class="mr-2">
+                    <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </span>
+                  <!-- Dynamic button text based on loading state and mode -->
+                  <span x-text="loading ? (isEditing ? 'Actualizando...' : 'Creando...') : (isEditing ? 'Actualizar Banda' : 'Crear Banda')"></span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+        
+        <!-- Help Section with Tips -->
+        <div class="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <svg class="h-5 w-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div class="ml-3">
+              <h3 class="text-sm font-medium text-blue-800" x-text="isEditing ? 'Consejos para editar tu banda' : 'Consejos para crear tu banda'">
+              </h3>
+              <div class="mt-2 text-sm text-blue-700">
+                <ul class="list-disc list-inside space-y-1">
+                  <li>Elige un nombre memorable y único</li>
+                  <li>Describe el estilo musical y la visión de tu banda</li>
+                  <li>Menciona los instrumentos principales</li>
+                  <li>Puedes agregar miembros más tarde</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</Layout> 
