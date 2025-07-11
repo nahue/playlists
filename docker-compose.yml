@@ -1,0 +1,13 @@
+services:
+  db:
+    container_name: "playlist_db"
+    image: postgres:17-alpine
+    volumes:
+      - "./pg-data:/var/lib/postgresql/data:rw"
+    ports:
+      - "5454:5432"
+    environment:
+      POSTGRES_DB: "postgres"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+    restart: unless-stopped
