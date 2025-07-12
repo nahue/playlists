@@ -26,4 +26,4 @@ dist-ssr
 tmp
 pg-data
 pg-data-test
-config.env
+.env

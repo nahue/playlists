@@ -38,8 +38,8 @@ func NewConfig() *Config {
 // New creates a new Application instance
 func NewApplication() *Application {
 	// Load environment variables from config file
-	if err := godotenv.Load("config.env"); err != nil {
-		log.Printf("Warning: Could not load config.env file: %v", err)
+	if err := godotenv.Load(".env"); err != nil {
+		log.Printf("Warning: Could not load .env file: %v", err)
 	}
 
 	// Initialize database connection

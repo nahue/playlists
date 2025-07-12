@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import { PUBLIC_API_URL } from 'astro:env/client';
 ---
 
 <script>
@@ -15,7 +16,7 @@ import Layout from '../../layouts/Layout.astro';
   <div class="min-h-screen bg-gray-50 py-8">
     <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
       <!-- Alpine.js data object containing form state and methods -->
-      <div x-data="{
+      <div x-data=`{
         // Form data object to store band information
         form: {
           name: '',
@@ -58,9 +59,9 @@ import Layout from '../../layouts/Layout.astro';
           
           try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`http://localhost:8080/api/bands/${bandId}`, {
+            const response = await fetch("${PUBLIC_API_URL}/api/bands/" + bandId, {
               headers: {
-                'Authorization': `Bearer ${token}`
+                'Authorization': 'Bearer ' + token
               }
             });
             
@@ -97,8 +98,8 @@ import Layout from '../../layouts/Layout.astro';
             
             // Determine the API endpoint and method based on whether we're editing
             const url = this.isEditing 
-              ? `http://localhost:8080/api/bands/${this.bandId}`
-              : 'http://localhost:8080/api/bands';
+              ? "${PUBLIC_API_URL}/api/bands/" + this.bandId
+              : "${PUBLIC_API_URL}/api/bands";
             const method = this.isEditing ? 'PUT' : 'POST';
             
             // Prepare request body
@@ -122,7 +123,7 @@ import Layout from '../../layouts/Layout.astro';
               method: method,
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`  // Include auth token
+                'Authorization': 'Bearer ' + token  // Include auth token
               },
               body: JSON.stringify(requestBody)
             });
@@ -197,15 +198,15 @@ import Layout from '../../layouts/Layout.astro';
           try {
             const token = localStorage.getItem('token');
             const url = this.editingMember 
-              ? `http://localhost:8080/api/bands/${this.bandId}/members/${this.editingMember.id}`
-              : `http://localhost:8080/api/bands/${this.bandId}/members`;
+              ? "${PUBLIC_API_URL}/api/bands/" + this.bandId + "/members/" + this.editingMember.id
+              : "${PUBLIC_API_URL}/api/bands/" + this.bandId + "/members";
             const method = this.editingMember ? 'PUT' : 'POST';
             
             const response = await fetch(url, {
               method: method,
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
+                'Authorization': 'Bearer ' + token
               },
               body: JSON.stringify({
                 name: this.newMember.name.trim(),
@@ -251,10 +252,10 @@ import Layout from '../../layouts/Layout.astro';
           // If we're editing an existing band, use the API
           try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`http://localhost:8080/api/bands/${this.bandId}/members/${memberId}`, {
+            const response = await fetch("${PUBLIC_API_URL}/api/bands/" + this.bandId + "/members/" + memberId, {
               method: 'DELETE',
               headers: {
-                'Authorization': `Bearer ${token}`
+                'Authorization': 'Bearer ' + token
               }
             });
             
@@ -268,7 +269,7 @@ import Layout from '../../layouts/Layout.astro';
             this.error = 'Error de conexión con el servidor';
           }
         }
-      }">
+      }`>
         
         <!-- Page Header Section -->
         <div class="mb-8">

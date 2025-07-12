@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import { PUBLIC_API_URL } from 'astro:env/client';
 ---
 
 <script>
@@ -26,7 +27,7 @@ import Layout from '../layouts/Layout.astro';
 				</p>
 			</div>
 			
-			<div x-data="{
+			<div x-data=`{
 				registerForm: {
 					firstName: '',
 					lastName: '',
@@ -63,7 +64,7 @@ import Layout from '../layouts/Layout.astro';
 					this.error = '';
 					
 					try {
-						const response = await fetch('http://localhost:8080/auth/register', {
+						const response = await fetch("${PUBLIC_API_URL}/auth/register", {
 							method: 'POST',
 							headers: {
 								'Content-Type': 'application/json',
@@ -94,7 +95,7 @@ import Layout from '../layouts/Layout.astro';
 						this.loading = false;
 					}
 				}
-			}">
+			}`>
 				
 				<!-- Error/Success Messages -->
 				<div x-show="error" x-transition class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">

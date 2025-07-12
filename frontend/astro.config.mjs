@@ -1,5 +1,5 @@
 // @ts-check
-import { defineConfig } from 'astro/config';
+import { defineConfig, envField } from 'astro/config';
 
 import alpinejs from '@astrojs/alpinejs';
 
@@ -11,5 +11,10 @@ export default defineConfig({
 
   vite: {
     plugins: [tailwindcss()]
+  },
+  env: {
+    schema: {
+      PUBLIC_API_URL: envField.string({default: "http://localhost:8080", context: "client", access: "public"}),
+    }
   }
 });

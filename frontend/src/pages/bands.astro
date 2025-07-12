@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import { PUBLIC_API_URL } from 'astro:env/client';
 ---
 
 <script>
@@ -12,7 +13,7 @@ import Layout from '../layouts/Layout.astro';
 </script>
 
 <Layout>
-        <div class="min-h-screen bg-gray-50 py-8" x-data="{
+        <div class="min-h-screen bg-gray-50 py-8" x-data=`{
         bands: [],
         loading: true,
         error: '',
@@ -25,9 +26,9 @@ import Layout from '../layouts/Layout.astro';
       
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:8080/api/bands', {
+        const response = await fetch("${PUBLIC_API_URL}/api/bands", {
           headers: {
-            'Authorization': `Bearer ${token}`
+            'Authorization': "Bearer " + token
           }
         });
         
@@ -46,10 +47,10 @@ import Layout from '../layouts/Layout.astro';
     async deleteBand() {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch(`http://localhost:8080/api/bands/${this.selectedBand.id}`, {
+        const response = await fetch("${PUBLIC_API_URL}/api/bands/" + this.selectedBand.id, {
           method: 'DELETE',
           headers: {
-            'Authorization': `Bearer ${token}`
+            'Authorization': 'Bearer ' + token
           }
         });
         
@@ -86,7 +87,7 @@ import Layout from '../layouts/Layout.astro';
         }
       });
     }
-  }">
+  }`>
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <!-- Header -->
       <div class="mb-8">
