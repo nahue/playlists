@@ -76,6 +76,25 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 					r.Delete("/", app.BandHandler.DeleteBandMember)
 				})
 			})
+			// Band playlists routes
+			r.Route("/{bandId}/playlists", func(r chi.Router) {
+				r.Get("/", app.BandPlaylistHandler.GetPlaylists)
+				r.Post("/", app.BandPlaylistHandler.CreatePlaylist)
+				r.Route("/{playlistId}", func(r chi.Router) {
+					r.Get("/", app.BandPlaylistHandler.GetPlaylist)
+					r.Put("/", app.BandPlaylistHandler.UpdatePlaylist)
+					r.Delete("/", app.BandPlaylistHandler.DeletePlaylist)
+					// Playlist songs routes
+					r.Route("/songs", func(r chi.Router) {
+						r.Get("/", app.BandPlaylistHandler.GetPlaylistSongs)
+						r.Post("/", app.BandPlaylistHandler.AddSong)
+						r.Route("/{songId}", func(r chi.Router) {
+							r.Put("/", app.BandPlaylistHandler.UpdateSong)
+							r.Delete("/", app.BandPlaylistHandler.DeleteSong)
+						})
+					})
+				})
+			})
 		})
 	})
 

@@ -14,11 +14,12 @@ import (
 
 // Application represents the main application instance
 type Application struct {
-	Logger      *log.Logger
-	Config      *Config
-	DB          *sqlx.DB
-	BandHandler *handlers.BandHandler
-	AuthHandler *handlers.AuthHandler
+	Logger              *log.Logger
+	Config              *Config
+	DB                  *sqlx.DB
+	BandHandler         *handlers.BandHandler
+	AuthHandler         *handlers.AuthHandler
+	BandPlaylistHandler *handlers.BandPlaylistHandler
 }
 
 // Config holds application configuration
@@ -59,17 +60,20 @@ func NewApplication() *Application {
 	// Initialize repositories
 	bandRepo := database.NewBandRepository(db)
 	userRepo := database.NewUserRepository(db)
+	playlistRepo := database.NewBandPlaylistRepository(db)
 
 	// Initialize handlers
 	bandHandler := handlers.NewBandHandler(bandRepo, logger)
 	authHandler := handlers.NewAuthHandler(userRepo, logger)
+	playlistHandler := handlers.NewBandPlaylistHandler(playlistRepo, logger)
 
 	return &Application{
-		Logger:      logger,
-		Config:      NewConfig(),
-		DB:          db,
-		BandHandler: bandHandler,
-		AuthHandler: authHandler,
+		Logger:              logger,
+		Config:              NewConfig(),
+		DB:                  db,
+		BandHandler:         bandHandler,
+		AuthHandler:         authHandler,
+		BandPlaylistHandler: playlistHandler,
 	}
 }
 

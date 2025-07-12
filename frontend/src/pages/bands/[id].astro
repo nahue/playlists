@@ -1,0 +1,1417 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { PUBLIC_API_URL } from 'astro:env/client';
+
+// Configure this page for client-side rendering
+export const prerender = false;
+
+// Required for dynamic routes - return empty array to disable static generation
+export async function getStaticPaths() {
+  return [];
+}
+---
+
+<script>
+  import { requireAuth } from '../../utils/auth.js';
+  
+  // Require authentication - only run on client side to avoid SSR issues
+  if (typeof window !== 'undefined') {
+    requireAuth();
+  }
+</script>
+
+<Layout>
+  <div class="min-h-screen bg-gray-50 py-8" x-data=`{
+    band: null,
+    loading: true,
+    error: '',
+    showDeleteModal: false,
+    showAddMemberModal: false,
+    newMember: {
+      name: '',
+      role: '',
+      email: '',
+      phone: ''
+    },
+    editingMember: null,
+    showEditMemberModal: false,
+    showDeleteMemberModal: false,
+    selectedMember: null,
+    playlists: [],
+    showAddPlaylistModal: false,
+    showEditPlaylistModal: false,
+    showDeletePlaylistModal: false,
+    selectedPlaylist: null,
+    editingPlaylist: null,
+    newPlaylist: {
+      name: '',
+      description: ''
+    },
+    showAddSongModal: false,
+    showEditSongModal: false,
+    showDeleteSongModal: false,
+    selectedSong: null,
+    editingSong: null,
+    newSong: {
+      artist: '',
+      song: '',
+      notes: '',
+      position: 0
+    },
+    
+    async loadBand() {
+      this.loading = true;
+      this.error = '';
+      
+      try {
+        const token = localStorage.getItem('token');
+        const bandId = window.location.pathname.split('/').pop();
+        const response = await fetch("${PUBLIC_API_URL}/api/bands/" + bandId, {
+          headers: {
+            'Authorization': 'Bearer ' + token
+          }
+        });
+        
+        if (response.ok) {
+          this.band = await response.json();
+        } else if (response.status === 404) {
+          this.error = 'Banda no encontrada';
+        } else {
+          this.error = 'Error al cargar los datos de la banda';
+        }
+      } catch (error) {
+        this.error = 'Error de conexión';
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    async deleteBand() {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch("${PUBLIC_API_URL}/api/bands/" + this.band.id, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': 'Bearer ' + token
+          }
+        });
+        
+        if (response.ok) {
+          window.location.href = '/bands';
+        } else {
+          const errorData = await response.text();
+          this.error = 'Error: ' + errorData;
+        }
+      } catch (error) {
+        this.error = 'Error de conexión';
+      }
+    },
+    
+    async addMember() {
+      if (!this.newMember.name.trim() || !this.newMember.role.trim()) {
+        this.error = 'Nombre y rol son requeridos';
+        return;
+      }
+      
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch("${PUBLIC_API_URL}/api/bands/" + this.band.id + "/members", {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify(this.newMember)
+        });
+        
+        if (response.ok) {
+          const newMember = await response.json();
+          this.band.members.push(newMember);
+          this.band.member_count = this.band.members.length;
+          this.showAddMemberModal = false;
+          this.newMember = { name: '', role: '', email: '', phone: '' };
+          this.error = '';
+        } else {
+          const errorData = await response.text();
+          this.error = 'Error: ' + errorData;
+        }
+      } catch (error) {
+        this.error = 'Error de conexión';
+      }
+    },
+    
+    async updateMember() {
+      if (!this.editingMember.name.trim() || !this.editingMember.role.trim()) {
+        this.error = 'Nombre y rol son requeridos';
+        return;
+      }
+      
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch("${PUBLIC_API_URL}/api/bands/" + this.band.id + "/members/" + this.editingMember.id, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({
+            name: this.editingMember.name,
+            role: this.editingMember.role,
+            email: this.editingMember.email,
+            phone: this.editingMember.phone
+          })
+        });
+        
+        if (response.ok) {
+          const updatedMember = await response.json();
+          const index = this.band.members.findIndex(m => m.id === updatedMember.id);
+          if (index !== -1) {
+            this.band.members[index] = updatedMember;
+          }
+          this.showEditMemberModal = false;
+          this.editingMember = null;
+          this.error = '';
+        } else {
+          const errorData = await response.text();
+          this.error = 'Error: ' + errorData;
+        }
+      } catch (error) {
+        this.error = 'Error de conexión';
+      }
+    },
+    
+    async deleteMember() {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch("${PUBLIC_API_URL}/api/bands/" + this.band.id + "/members/" + this.selectedMember.id, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': 'Bearer ' + token
+          }
+        });
+        
+        if (response.ok) {
+          this.band.members = this.band.members.filter(m => m.id !== this.selectedMember.id);
+          this.band.member_count = this.band.members.length;
+          this.showDeleteMemberModal = false;
+          this.selectedMember = null;
+          this.error = '';
+        } else {
+          const errorData = await response.text();
+          this.error = 'Error: ' + errorData;
+        }
+      } catch (error) {
+        this.error = 'Error de conexión';
+      }
+    },
+    
+    openDeleteModal() {
+      this.showDeleteModal = true;
+    },
+    
+    closeModal() {
+      this.showDeleteModal = false;
+    },
+    
+    openAddMemberModal() {
+      this.showAddMemberModal = true;
+      this.newMember = { name: '', role: '', email: '', phone: '' };
+    },
+    
+    closeAddMemberModal() {
+      this.showAddMemberModal = false;
+      this.newMember = { name: '', role: '', email: '', phone: '' };
+    },
+    
+    openEditMemberModal(member) {
+      this.editingMember = { ...member };
+      this.showEditMemberModal = true;
+    },
+    
+    closeEditMemberModal() {
+      this.showEditMemberModal = false;
+      this.editingMember = null;
+    },
+    
+    openDeleteMemberModal(member) {
+      this.selectedMember = member;
+      this.showDeleteMemberModal = true;
+    },
+    
+    closeDeleteMemberModal() {
+      this.showDeleteMemberModal = false;
+      this.selectedMember = null;
+    },
+    
+    async loadPlaylists() {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch("${PUBLIC_API_URL}/api/bands/" + this.band.id + "/playlists", {
+          headers: {
+            'Authorization': 'Bearer ' + token
+          }
+        });
+        
+        if (response.ok) {
+          this.playlists = await response.json();
+        } else {
+          this.error = 'Error al cargar las playlists';
+        }
+      } catch (error) {
+        this.error = 'Error de conexión';
+      }
+    },
+    
+    async createPlaylist() {
+      if (!this.newPlaylist.name.trim()) {
+        this.error = 'El nombre de la playlist es requerido';
+        return;
+      }
+      
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch("${PUBLIC_API_URL}/api/bands/" + this.band.id + "/playlists", {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify(this.newPlaylist)
+        });
+        
+        if (response.ok) {
+          const newPlaylist = await response.json();
+          this.playlists.push(newPlaylist);
+          this.showAddPlaylistModal = false;
+          this.newPlaylist = { name: '', description: '' };
+          this.error = '';
+        } else {
+          const errorData = await response.text();
+          this.error = 'Error: ' + errorData;
+        }
+      } catch (error) {
+        this.error = 'Error de conexión';
+      }
+    },
+    
+    async updatePlaylist() {
+      if (!this.editingPlaylist.name.trim()) {
+        this.error = 'El nombre de la playlist es requerido';
+        return;
+      }
+      
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch("${PUBLIC_API_URL}/api/bands/" + this.band.id + "/playlists/" + this.editingPlaylist.id, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({
+            name: this.editingPlaylist.name,
+            description: this.editingPlaylist.description
+          })
+        });
+        
+        if (response.ok) {
+          const updatedPlaylist = await response.json();
+          const index = this.playlists.findIndex(p => p.id === updatedPlaylist.id);
+          if (index !== -1) {
+            this.playlists[index] = { ...this.playlists[index], ...updatedPlaylist };
+          }
+          this.showEditPlaylistModal = false;
+          this.editingPlaylist = null;
+          this.error = '';
+        } else {
+          const errorData = await response.text();
+          this.error = 'Error: ' + errorData;
+        }
+      } catch (error) {
+        this.error = 'Error de conexión';
+      }
+    },
+    
+    async deletePlaylist() {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch("${PUBLIC_API_URL}/api/bands/" + this.band.id + "/playlists/" + this.selectedPlaylist.id, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': 'Bearer ' + token
+          }
+        });
+        
+        if (response.ok) {
+          this.playlists = this.playlists.filter(p => p.id !== this.selectedPlaylist.id);
+          this.showDeletePlaylistModal = false;
+          this.selectedPlaylist = null;
+          this.error = '';
+        } else {
+          const errorData = await response.text();
+          this.error = 'Error: ' + errorData;
+        }
+      } catch (error) {
+        this.error = 'Error de conexión';
+      }
+    },
+    
+    async addSong() {
+      if (!this.newSong.artist.trim() || !this.newSong.song.trim()) {
+        this.error = 'Artista y canción son requeridos';
+        return;
+      }
+      
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch("${PUBLIC_API_URL}/api/bands/" + this.band.id + "/playlists/" + this.selectedPlaylist.id + "/songs", {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify(this.newSong)
+        });
+        
+        if (response.ok) {
+          const newSong = await response.json();
+          this.selectedPlaylist.songs.push(newSong);
+          this.selectedPlaylist.song_count = this.selectedPlaylist.songs.length;
+          this.showAddSongModal = false;
+          this.newSong = { artist: '', song: '', notes: '', position: 0 };
+          this.error = '';
+        } else {
+          const errorData = await response.text();
+          this.error = 'Error: ' + errorData;
+        }
+      } catch (error) {
+        this.error = 'Error de conexión';
+      }
+    },
+    
+    async updateSong() {
+      if (!this.editingSong.artist.trim() || !this.editingSong.song.trim()) {
+        this.error = 'Artista y canción son requeridos';
+        return;
+      }
+      
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch("${PUBLIC_API_URL}/api/bands/" + this.band.id + "/playlists/" + this.selectedPlaylist.id + "/songs/" + this.editingSong.id, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({
+            artist: this.editingSong.artist,
+            song: this.editingSong.song,
+            notes: this.editingSong.notes,
+            position: this.editingSong.position
+          })
+        });
+        
+        if (response.ok) {
+          const updatedSong = await response.json();
+          const index = this.selectedPlaylist.songs.findIndex(s => s.id === updatedSong.id);
+          if (index !== -1) {
+            this.selectedPlaylist.songs[index] = updatedSong;
+          }
+          this.showEditSongModal = false;
+          this.editingSong = null;
+          this.error = '';
+        } else {
+          const errorData = await response.text();
+          this.error = 'Error: ' + errorData;
+        }
+      } catch (error) {
+        this.error = 'Error de conexión';
+      }
+    },
+    
+    async deleteSong() {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch("${PUBLIC_API_URL}/api/bands/" + this.band.id + "/playlists/" + this.selectedPlaylist.id + "/songs/" + this.selectedSong.id, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': 'Bearer ' + token
+          }
+        });
+        
+        if (response.ok) {
+          this.selectedPlaylist.songs = this.selectedPlaylist.songs.filter(s => s.id !== this.selectedSong.id);
+          this.selectedPlaylist.song_count = this.selectedPlaylist.songs.length;
+          this.showDeleteSongModal = false;
+          this.selectedSong = null;
+          this.error = '';
+        } else {
+          const errorData = await response.text();
+          this.error = 'Error: ' + errorData;
+        }
+      } catch (error) {
+        this.error = 'Error de conexión';
+      }
+    },
+    
+    openAddPlaylistModal() {
+      this.showAddPlaylistModal = true;
+      this.newPlaylist = { name: '', description: '' };
+    },
+    
+    closeAddPlaylistModal() {
+      this.showAddPlaylistModal = false;
+      this.newPlaylist = { name: '', description: '' };
+    },
+    
+    openEditPlaylistModal(playlist) {
+      this.editingPlaylist = { ...playlist };
+      this.showEditPlaylistModal = true;
+    },
+    
+    closeEditPlaylistModal() {
+      this.showEditPlaylistModal = false;
+      this.editingPlaylist = null;
+    },
+    
+    openDeletePlaylistModal(playlist) {
+      this.selectedPlaylist = playlist;
+      this.showDeletePlaylistModal = true;
+    },
+    
+    closeDeletePlaylistModal() {
+      this.showDeletePlaylistModal = false;
+      this.selectedPlaylist = null;
+    },
+    
+    openAddSongModal(playlist) {
+      this.selectedPlaylist = playlist;
+      this.showAddSongModal = true;
+      this.newSong = { artist: '', song: '', notes: '', position: playlist.songs.length };
+    },
+    
+    closeAddSongModal() {
+      this.showAddSongModal = false;
+      this.newSong = { artist: '', song: '', notes: '', position: 0 };
+    },
+    
+    openEditSongModal(song) {
+      this.editingSong = { ...song };
+      this.showEditSongModal = true;
+    },
+    
+    closeEditSongModal() {
+      this.showEditSongModal = false;
+      this.editingSong = null;
+    },
+    
+    openDeleteSongModal(song) {
+      this.selectedSong = song;
+      this.showDeleteSongModal = true;
+    },
+    
+    closeDeleteSongModal() {
+      this.showDeleteSongModal = false;
+      this.selectedSong = null;
+    },
+    
+    init() {
+      this.loadBand();
+      this.loadPlaylists();
+      
+      // Add escape key listeners
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          if (this.showDeleteModal) this.closeModal();
+          if (this.showAddMemberModal) this.closeAddMemberModal();
+          if (this.showEditMemberModal) this.closeEditMemberModal();
+          if (this.showDeleteMemberModal) this.closeDeleteMemberModal();
+          if (this.showAddPlaylistModal) this.closeAddPlaylistModal();
+          if (this.showEditPlaylistModal) this.closeEditPlaylistModal();
+          if (this.showDeletePlaylistModal) this.closeDeletePlaylistModal();
+          if (this.showAddSongModal) this.closeAddSongModal();
+          if (this.showEditSongModal) this.closeEditSongModal();
+          if (this.showDeleteSongModal) this.closeDeleteSongModal();
+        }
+      });
+    }
+  }`>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <!-- Header -->
+      <div class="mb-8">
+        <div class="flex justify-between items-center">
+          <div class="flex items-center space-x-4">
+            <a href="/bands" class="text-indigo-600 hover:text-indigo-900">
+              <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+            </a>
+            <div>
+              <h1 class="text-3xl font-bold text-gray-900" x-text="band?.name || 'Cargando...'"></h1>
+              <p class="mt-2 text-sm text-gray-600">
+                Detalles de la banda y gestión de miembros
+              </p>
+            </div>
+          </div>
+          <div class="flex space-x-3">
+            <a
+              :href="'/bands/create?id=' + (band?.id || '')"
+              class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              <svg class="-ml-1 mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Editar
+            </a>
+            <button
+              @click="openDeleteModal()"
+              class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+            >
+              <svg class="-ml-1 mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Eliminar
+            </button>
+                  </div>
+
+        <!-- Playlists Section -->
+        <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+          <div class="px-4 py-5 sm:px-6 flex justify-between items-center">
+            <div>
+              <h3 class="text-lg leading-6 font-medium text-gray-900">Playlists</h3>
+              <p class="mt-1 max-w-2xl text-sm text-gray-500">Gestiona las playlists de la banda</p>
+            </div>
+            <button
+              @click="openAddPlaylistModal()"
+              class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              <svg class="-ml-0.5 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Nueva Playlist
+            </button>
+          </div>
+          
+          <!-- Playlists List -->
+          <div class="border-t border-gray-200">
+            <div x-show="playlists.length === 0" class="text-center py-12">
+              <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+              </svg>
+              <h3 class="mt-2 text-sm font-medium text-gray-900">No hay playlists</h3>
+              <p class="mt-1 text-sm text-gray-500">Comienza creando la primera playlist de la banda.</p>
+            </div>
+            
+            <div x-show="playlists.length > 0" class="divide-y divide-gray-200">
+              <template x-for="playlist in playlists" :key="playlist.id">
+                <div class="px-4 py-4 sm:px-6">
+                  <div class="flex items-center justify-between">
+                    <div class="flex-1">
+                      <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                          <div class="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
+                            <svg class="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                            </svg>
+                          </div>
+                        </div>
+                        <div class="ml-4 flex-1">
+                          <div class="text-sm font-medium text-gray-900" x-text="playlist.name"></div>
+                          <div class="text-sm text-gray-500" x-text="playlist.description || 'Sin descripción'"></div>
+                          <div class="text-sm text-gray-500" x-text="`${playlist.song_count || 0} canciones`"></div>
+                        </div>
+                      </div>
+                      
+                      <!-- Songs List (collapsible) -->
+                      <div x-show="playlist.songs && playlist.songs.length > 0" class="mt-4 ml-14">
+                        <div class="space-y-2">
+                          <template x-for="(song, index) in playlist.songs" :key="song.id">
+                            <div class="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                              <div class="flex items-center space-x-3">
+                                <span class="text-xs font-medium text-gray-500" x-text="(index + 1).toString().padStart(2, '0')"></span>
+                                <div>
+                                  <div class="text-sm font-medium text-gray-900" x-text="song.artist + ' - ' + song.song"></div>
+                                  <div x-show="song.notes" class="text-xs text-gray-500" x-text="song.notes"></div>
+                                </div>
+                              </div>
+                              <div class="flex space-x-1">
+                                <button
+                                  @click="openEditSongModal(song)"
+                                  class="text-indigo-600 hover:text-indigo-900"
+                                  title="Editar canción"
+                                >
+                                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                                <button
+                                  @click="openDeleteSongModal(song)"
+                                  class="text-red-600 hover:text-red-900"
+                                  title="Eliminar canción"
+                                >
+                                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="flex space-x-2 ml-4">
+                      <button
+                        @click="openAddSongModal(playlist)"
+                        class="text-green-600 hover:text-green-900"
+                        title="Agregar canción"
+                      >
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                      </button>
+                      <button
+                        @click="openEditPlaylistModal(playlist)"
+                        class="text-indigo-600 hover:text-indigo-900"
+                        title="Editar playlist"
+                      >
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        @click="openDeletePlaylistModal(playlist)"
+                        class="text-red-600 hover:text-red-900"
+                        title="Eliminar playlist"
+                      >
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+      <!-- Error Message -->
+      <div x-show="error" x-cloak x-transition class="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+        <span x-text="error"></span>
+      </div>
+      
+      <!-- Loading State -->
+      <div x-show="loading" x-cloak class="flex justify-center items-center py-12">
+        <svg class="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      </div>
+      
+      <!-- Band Details -->
+      <div x-show="!loading && band" x-cloak class="space-y-8">
+        <!-- Band Information -->
+        <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+          <div class="px-4 py-5 sm:px-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900">Información de la Banda</h3>
+            <p class="mt-1 max-w-2xl text-sm text-gray-500" x-text="band.description || 'Sin descripción'"></p>
+          </div>
+          <div class="border-t border-gray-200">
+            <dl>
+              <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt class="text-sm font-medium text-gray-500">Nombre</dt>
+                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2" x-text="band.name"></dd>
+              </div>
+              <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt class="text-sm font-medium text-gray-500">Descripción</dt>
+                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2" x-text="band.description || 'Sin descripción'"></dd>
+              </div>
+              <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt class="text-sm font-medium text-gray-500">Miembros</dt>
+                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2" x-text="band.member_count + ' miembros'"></dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+
+        <!-- Members Section -->
+        <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+          <div class="px-4 py-5 sm:px-6 flex justify-between items-center">
+            <div>
+              <h3 class="text-lg leading-6 font-medium text-gray-900">Miembros</h3>
+              <p class="mt-1 max-w-2xl text-sm text-gray-500">Gestiona los miembros de la banda</p>
+            </div>
+            <button
+              @click="openAddMemberModal()"
+              class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              <svg class="-ml-0.5 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Agregar Miembro
+            </button>
+          </div>
+          
+          <!-- Members List -->
+          <div class="border-t border-gray-200">
+            <div x-show="band.members.length === 0" class="text-center py-12">
+              <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <h3 class="mt-2 text-sm font-medium text-gray-900">No hay miembros</h3>
+              <p class="mt-1 text-sm text-gray-500">Comienza agregando el primer miembro de la banda.</p>
+            </div>
+            
+            <div x-show="band.members.length > 0" class="divide-y divide-gray-200">
+              <template x-for="member in band.members" :key="member.id">
+                <div class="px-4 py-4 sm:px-6">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                      <div class="flex-shrink-0">
+                        <div class="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
+                          <span class="text-sm font-medium text-indigo-800" x-text="member.name.charAt(0).toUpperCase()"></span>
+                        </div>
+                      </div>
+                      <div class="ml-4">
+                        <div class="text-sm font-medium text-gray-900" x-text="member.name"></div>
+                        <div class="text-sm text-gray-500" x-text="member.role"></div>
+                        <div class="text-sm text-gray-500" x-show="member.email" x-text="member.email"></div>
+                        <div class="text-sm text-gray-500" x-show="member.phone" x-text="member.phone"></div>
+                      </div>
+                    </div>
+                    <div class="flex space-x-2">
+                      <button
+                        @click="openEditMemberModal(member)"
+                        class="text-indigo-600 hover:text-indigo-900"
+                        title="Editar miembro"
+                      >
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        @click="openDeleteMemberModal(member)"
+                        class="text-red-600 hover:text-red-900"
+                        title="Eliminar miembro"
+                      >
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete Band Modal -->
+    <div x-show="showDeleteModal" x-cloak x-transition class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+      <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-600 opacity-50 transition-opacity"></div>
+        <div class="relative z-10 inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+          <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div class="sm:flex sm:items-start">
+              <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Eliminar Banda</h3>
+                <div class="mt-2">
+                  <p class="text-sm text-gray-500">
+                    ¿Estás seguro de que quieres eliminar la banda "<span x-text="band?.name"></span>"? Esta acción no se puede deshacer.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button
+              type="button"
+              @click="deleteBand()"
+              class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Eliminar
+            </button>
+            <button
+              type="button"
+              @click="closeModal()"
+              class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Member Modal -->
+    <div x-show="showAddMemberModal" x-cloak x-transition class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+      <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-600 opacity-50 transition-opacity"></div>
+        <div class="relative z-10 inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+          <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div class="sm:flex sm:items-start">
+              <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 sm:mx-0 sm:h-10 sm:w-10">
+                <svg class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+              </div>
+              <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Agregar Miembro</h3>
+                <div class="mt-4 space-y-4">
+                  <div>
+                    <label for="member-name" class="block text-sm font-medium text-gray-700">Nombre *</label>
+                    <input
+                      type="text"
+                      id="member-name"
+                      x-model="newMember.name"
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="Nombre del miembro"
+                    />
+                  </div>
+                  <div>
+                    <label for="member-role" class="block text-sm font-medium text-gray-700">Rol *</label>
+                    <input
+                      type="text"
+                      id="member-role"
+                      x-model="newMember.role"
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="Guitarrista, Baterista, etc."
+                    />
+                  </div>
+                  <div>
+                    <label for="member-email" class="block text-sm font-medium text-gray-700">Email</label>
+                    <input
+                      type="email"
+                      id="member-email"
+                      x-model="newMember.email"
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="email@ejemplo.com"
+                    />
+                  </div>
+                  <div>
+                    <label for="member-phone" class="block text-sm font-medium text-gray-700">Teléfono</label>
+                    <input
+                      type="tel"
+                      id="member-phone"
+                      x-model="newMember.phone"
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="+1234567890"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button
+              type="button"
+              @click="addMember()"
+              class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Agregar
+            </button>
+            <button
+              type="button"
+              @click="closeAddMemberModal()"
+              class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Member Modal -->
+    <div x-show="showEditMemberModal" x-cloak x-transition class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+      <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-600 opacity-50 transition-opacity"></div>
+        <div class="relative z-10 inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+          <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div class="sm:flex sm:items-start">
+              <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 sm:mx-0 sm:h-10 sm:w-10">
+                <svg class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </div>
+              <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Editar Miembro</h3>
+                <div class="mt-4 space-y-4">
+                  <div>
+                    <label for="edit-member-name" class="block text-sm font-medium text-gray-700">Nombre *</label>
+                    <input
+                      type="text"
+                      id="edit-member-name"
+                      x-model="editingMember.name"
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="Nombre del miembro"
+                    />
+                  </div>
+                  <div>
+                    <label for="edit-member-role" class="block text-sm font-medium text-gray-700">Rol *</label>
+                    <input
+                      type="text"
+                      id="edit-member-role"
+                      x-model="editingMember.role"
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="Guitarrista, Baterista, etc."
+                    />
+                  </div>
+                  <div>
+                    <label for="edit-member-email" class="block text-sm font-medium text-gray-700">Email</label>
+                    <input
+                      type="email"
+                      id="edit-member-email"
+                      x-model="editingMember.email"
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="email@ejemplo.com"
+                    />
+                  </div>
+                  <div>
+                    <label for="edit-member-phone" class="block text-sm font-medium text-gray-700">Teléfono</label>
+                    <input
+                      type="tel"
+                      id="edit-member-phone"
+                      x-model="editingMember.phone"
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="+1234567890"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button
+              type="button"
+              @click="updateMember()"
+              class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Actualizar
+            </button>
+            <button
+              type="button"
+              @click="closeEditMemberModal()"
+              class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete Member Modal -->
+    <div x-show="showDeleteMemberModal" x-cloak x-transition class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+      <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-600 opacity-50 transition-opacity"></div>
+        <div class="relative z-10 inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+          <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div class="sm:flex sm:items-start">
+              <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Eliminar Miembro</h3>
+                <div class="mt-2">
+                  <p class="text-sm text-gray-500">
+                    ¿Estás seguro de que quieres eliminar a "<span x-text="selectedMember?.name"></span>" de la banda? Esta acción no se puede deshacer.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button
+              type="button"
+              @click="deleteMember()"
+              class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Eliminar
+            </button>
+            <button
+              type="button"
+              @click="closeDeleteMemberModal()"
+              class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Playlist Modal -->
+    <div x-show="showAddPlaylistModal" x-cloak x-transition class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+      <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-600 opacity-50 transition-opacity"></div>
+        <div class="relative z-10 inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+          <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div class="sm:flex sm:items-start">
+              <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 sm:mx-0 sm:h-10 sm:w-10">
+                <svg class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+              </div>
+              <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Nueva Playlist</h3>
+                <div class="mt-4 space-y-4">
+                  <div>
+                    <label for="playlist-name" class="block text-sm font-medium text-gray-700">Nombre *</label>
+                    <input
+                      type="text"
+                      id="playlist-name"
+                      x-model="newPlaylist.name"
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="Nombre de la playlist"
+                    />
+                  </div>
+                  <div>
+                    <label for="playlist-description" class="block text-sm font-medium text-gray-700">Descripción</label>
+                    <textarea
+                      id="playlist-description"
+                      x-model="newPlaylist.description"
+                      rows="3"
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="Descripción de la playlist"
+                    ></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button
+              type="button"
+              @click="createPlaylist()"
+              class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Crear
+            </button>
+            <button
+              type="button"
+              @click="closeAddPlaylistModal()"
+              class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Playlist Modal -->
+    <div x-show="showEditPlaylistModal" x-cloak x-transition class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+      <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-600 opacity-50 transition-opacity"></div>
+        <div class="relative z-10 inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+          <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div class="sm:flex sm:items-start">
+              <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 sm:mx-0 sm:h-10 sm:w-10">
+                <svg class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </div>
+              <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Editar Playlist</h3>
+                <div class="mt-4 space-y-4">
+                  <div>
+                    <label for="edit-playlist-name" class="block text-sm font-medium text-gray-700">Nombre *</label>
+                    <input
+                      type="text"
+                      id="edit-playlist-name"
+                      x-model="editingPlaylist.name"
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="Nombre de la playlist"
+                    />
+                  </div>
+                  <div>
+                    <label for="edit-playlist-description" class="block text-sm font-medium text-gray-700">Descripción</label>
+                    <textarea
+                      id="edit-playlist-description"
+                      x-model="editingPlaylist.description"
+                      rows="3"
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="Descripción de la playlist"
+                    ></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button
+              type="button"
+              @click="updatePlaylist()"
+              class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Actualizar
+            </button>
+            <button
+              type="button"
+              @click="closeEditPlaylistModal()"
+              class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete Playlist Modal -->
+    <div x-show="showDeletePlaylistModal" x-cloak x-transition class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+      <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-600 opacity-50 transition-opacity"></div>
+        <div class="relative z-10 inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+          <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div class="sm:flex sm:items-start">
+              <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Eliminar Playlist</h3>
+                <div class="mt-2">
+                  <p class="text-sm text-gray-500">
+                    ¿Estás seguro de que quieres eliminar la playlist "<span x-text="selectedPlaylist?.name"></span>"? Esta acción no se puede deshacer.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button
+              type="button"
+              @click="deletePlaylist()"
+              class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Eliminar
+            </button>
+            <button
+              type="button"
+              @click="closeDeletePlaylistModal()"
+              class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Song Modal -->
+    <div x-show="showAddSongModal" x-cloak x-transition class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+      <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-600 opacity-50 transition-opacity"></div>
+        <div class="relative z-10 inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+          <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div class="sm:flex sm:items-start">
+              <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-green-100 sm:mx-0 sm:h-10 sm:w-10">
+                <svg class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+              </div>
+              <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Agregar Canción</h3>
+                <div class="mt-4 space-y-4">
+                  <div>
+                    <label for="song-artist" class="block text-sm font-medium text-gray-700">Artista *</label>
+                    <input
+                      type="text"
+                      id="song-artist"
+                      x-model="newSong.artist"
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="Nombre del artista"
+                    />
+                  </div>
+                  <div>
+                    <label for="song-title" class="block text-sm font-medium text-gray-700">Canción *</label>
+                    <input
+                      type="text"
+                      id="song-title"
+                      x-model="newSong.song"
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="Título de la canción"
+                    />
+                  </div>
+                  <div>
+                    <label for="song-notes" class="block text-sm font-medium text-gray-700">Notas</label>
+                    <textarea
+                      id="song-notes"
+                      x-model="newSong.notes"
+                      rows="2"
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="Notas adicionales"
+                    ></textarea>
+                  </div>
+                  <div>
+                    <label for="song-position" class="block text-sm font-medium text-gray-700">Posición</label>
+                    <input
+                      type="number"
+                      id="song-position"
+                      x-model="newSong.position"
+                      min="0"
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button
+              type="button"
+              @click="addSong()"
+              class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Agregar
+            </button>
+            <button
+              type="button"
+              @click="closeAddSongModal()"
+              class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Song Modal -->
+    <div x-show="showEditSongModal" x-cloak x-transition class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+      <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-600 opacity-50 transition-opacity"></div>
+        <div class="relative z-10 inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+          <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div class="sm:flex sm:items-start">
+              <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 sm:mx-0 sm:h-10 sm:w-10">
+                <svg class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </div>
+              <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Editar Canción</h3>
+                <div class="mt-4 space-y-4">
+                  <div>
+                    <label for="edit-song-artist" class="block text-sm font-medium text-gray-700">Artista *</label>
+                    <input
+                      type="text"
+                      id="edit-song-artist"
+                      x-model="editingSong.artist"
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="Nombre del artista"
+                    />
+                  </div>
+                  <div>
+                    <label for="edit-song-title" class="block text-sm font-medium text-gray-700">Canción *</label>
+                    <input
+                      type="text"
+                      id="edit-song-title"
+                      x-model="editingSong.song"
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="Título de la canción"
+                    />
+                  </div>
+                  <div>
+                    <label for="edit-song-notes" class="block text-sm font-medium text-gray-700">Notas</label>
+                    <textarea
+                      id="edit-song-notes"
+                      x-model="editingSong.notes"
+                      rows="2"
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="Notas adicionales"
+                    ></textarea>
+                  </div>
+                  <div>
+                    <label for="edit-song-position" class="block text-sm font-medium text-gray-700">Posición</label>
+                    <input
+                      type="number"
+                      id="edit-song-position"
+                      x-model="editingSong.position"
+                      min="0"
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button
+              type="button"
+              @click="updateSong()"
+              class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Actualizar
+            </button>
+            <button
+              type="button"
+              @click="closeEditSongModal()"
+              class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete Song Modal -->
+    <div x-show="showDeleteSongModal" x-cloak x-transition class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+      <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-600 opacity-50 transition-opacity"></div>
+        <div class="relative z-10 inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+          <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div class="sm:flex sm:items-start">
+              <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Eliminar Canción</h3>
+                <div class="mt-2">
+                  <p class="text-sm text-gray-500">
+                    ¿Estás seguro de que quieres eliminar "<span x-text="selectedSong?.artist + ' - ' + selectedSong?.song"></span>" de la playlist? Esta acción no se puede deshacer.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button
+              type="button"
+              @click="deleteSong()"
+              class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Eliminar
+            </button>
+            <button
+              type="button"
+              @click="closeDeleteSongModal()"
+              class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</Layout> 
