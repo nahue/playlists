@@ -34,7 +34,9 @@ RUN bun install
 # Copy frontend source code
 COPY frontend/ ./
 
-# Build the frontend
+# Build the frontend with environment variable
+ARG PUBLIC_API_URL=http://localhost:8080
+ENV PUBLIC_API_URL=$PUBLIC_API_URL
 RUN bun run build
 
 # Final stage
